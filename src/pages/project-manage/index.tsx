@@ -39,7 +39,6 @@ export function ProjectManagePage() {
           dataSource={rows}
           rowSelection={{ columnWidth: 72, selectedRowKeys, onChange: setSelectedRowKeys }}
           columns={[
-            { title: '序号', className: 'admin-index-column', width: 96, align: 'center' as const, render: (_, __, index) => index + 1 },
             { title: '项目 ID', dataIndex: 'projectId', width: 120, align: 'center' as const },
             { title: '项目名称', dataIndex: 'name', ellipsis: true },
             { title: '当前角色', dataIndex: 'roleName', width: '28%', ellipsis: true },

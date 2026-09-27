@@ -47,7 +47,6 @@ export function AccountManagePage() {
     </Card>
     <Card className="admin-card admin-table-card" variant="borderless" title="用户列表" extra={<Space><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>新增</Button><Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>刷新</Button></Space>}>
       <Table<AccountRecord> className="admin-selection-table" rowKey="id" tableLayout="fixed" loading={loading} pagination={false} dataSource={visibleRows} rowSelection={{ columnWidth: 72, selectedRowKeys, onChange: setSelectedRowKeys }} columns={[
-        { title: '序号', className: 'admin-index-column', width: 96, align: 'center' as const, render: (_, __, index) => (page - 1) * pageSize + index + 1 },
         { title: '用户 ID', dataIndex: 'id', width: 120, align: 'center' as const },
         { title: '登录名', dataIndex: 'account', width: 260, ellipsis: true },
         { title: '显示名', dataIndex: 'username', ellipsis: true },

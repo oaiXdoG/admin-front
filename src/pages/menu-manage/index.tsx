@@ -185,7 +185,7 @@ export function MenuManagePage() {
           expandable={{ defaultExpandAllRows: true, expandIconColumnIndex: 0, indentSize: 0 }}
           dataSource={buildTree(rows.filter((item) => !keyword || `${item.name} ${item.routeName} ${item.routePath}`.toLowerCase().includes(keyword.toLowerCase())))}
           columns={[
-            { title: '序号', className: 'admin-index-column', width: 96, align: 'center' as const, render: (_, record) => record.id },
+            { title: '菜单 ID', dataIndex: 'id', className: 'admin-index-column', width: 96, align: 'center' as const },
             { title: '菜单名称', dataIndex: 'name', align: 'center' as const, ellipsis: true },
             {
               title: '类型',

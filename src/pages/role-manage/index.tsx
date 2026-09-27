@@ -145,7 +145,7 @@ export function RoleManagePage() {
       <Button icon={<SettingOutlined />} onClick={() => setColumnSettingsOpen(true)}>列设置</Button>
     </Space>}>
       <Table<RoleRecord> className="admin-selection-table" rowKey="id" tableLayout="fixed" loading={loading} pagination={false} dataSource={visibleRoles} rowSelection={{ columnWidth: 72, selectedRowKeys, onChange: setSelectedRowKeys }} columns={[
-        { title: '序号', className: 'admin-index-column', width: 96, align: 'center' as const, render: (_, __, index) => (page - 1) * pageSize + index + 1 },
+        { title: '角色 ID', dataIndex: 'id', width: 120, align: 'center' as const },
         ...(visibleColumns.includes('name') ? [{ title: '角色名称', dataIndex: 'name', width: '22%', align: 'center' as const, ellipsis: true }] : []),
         ...(visibleColumns.includes('code') ? [{ title: '角色编码', dataIndex: 'code', width: '22%', ellipsis: true }] : []),
         ...(visibleColumns.includes('description') ? [{ title: '角色描述', dataIndex: 'description', ellipsis: true }] : []),
