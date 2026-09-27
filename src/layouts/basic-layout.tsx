@@ -142,6 +142,17 @@ export function BasicLayout() {
   const mustCreate = canManage && projects !== null && projects.projects.length === 0
   const createVisible = mustCreate || createOpen
 
+  async function refreshProjects() {
+    setLoading(true)
+    try {
+      const projectData = await fetchProjectList()
+      setProjects(projectData)
+      setAccessMenus(await fetchAccessMenus())
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function onSwitch(projectId: number) {
     if (!projects || projectId === projects.currentProjectId) {
       return
@@ -162,7 +173,7 @@ export function BasicLayout() {
   async function onCreate(values: ProjectCreateValues) {
     setCreating(true)
     try {
-      await createProject(values.name)
+      await createProject(values.name, values.appKey)
       const [projectData, menuData] = await Promise.all([fetchProjectList(), fetchAccessMenus()])
       setProjects(projectData)
       setAccessMenus(menuData)
@@ -217,6 +228,7 @@ export function BasicLayout() {
     onOpenCreate: () => setCreateOpen(true),
     onCloseCreate: () => setCreateOpen(false),
     onCreate,
+    onRefreshProjects: refreshProjects,
   }
 
   return (
@@ -340,6 +352,16 @@ export function BasicLayout() {
         }}
       >
         <Form form={form} layout="vertical" requiredMark={false} onFinish={onCreate}>
+          <Form.Item
+            label="App Key"
+            name="appKey"
+            rules={[
+              { required: true, whitespace: true, message: '请输入 App Key' },
+              { max: 64, message: 'App Key 最长 64 位' },
+            ]}
+          >
+            <Input maxLength={64} placeholder="请输入 App Key" />
+          </Form.Item>
           <Form.Item
             label="项目名称"
             name="name"

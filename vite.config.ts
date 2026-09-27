@@ -7,6 +7,8 @@ const API_TARGETS: Record<string, string> = {
   '/api/login': 'http://192.168.1.3:9050/api/login',
   '/api/project/list': 'http://192.168.1.3:9050/api/project/list',
   '/api/project/create': 'http://192.168.1.3:9050/api/project/create',
+  '/api/project/update': 'http://192.168.1.3:9050/api/project/update',
+  '/api/project/close': 'http://192.168.1.3:9050/api/project/close',
   '/api/project/switch': 'http://192.168.1.3:9050/api/project/switch',
   '/api/account/create': 'http://192.168.1.3:9050/api/account/create',
   '/api/account/list': 'http://192.168.1.3:9050/api/account/list',

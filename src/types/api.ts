@@ -13,7 +13,9 @@ export type LoginData = {
 
 export type ProjectItem = {
   projectId: number
+  appKey: string
   name: string
+  createdAt: number
   roleId: number | null
   roleName: string
 }
@@ -25,7 +27,9 @@ export type ProjectListData = {
 
 export type ProjectCreateData = {
   projectId: number
+  appKey: string
   name: string
+  createdAt: number
   roleId: number | null
   roleName: string | null
   currentProjectId: number

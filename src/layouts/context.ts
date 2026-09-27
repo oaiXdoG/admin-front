@@ -1,6 +1,7 @@
 import type { ProjectListData } from '@/types/api.ts'
 
 export type ProjectCreateValues = {
+  appKey: string
   name: string
 }
 
@@ -14,4 +15,5 @@ export type LayoutOutletContext = {
   onOpenCreate: () => void
   onCloseCreate: () => void
   onCreate: (values: ProjectCreateValues) => void
+  onRefreshProjects: () => Promise<void>
 }

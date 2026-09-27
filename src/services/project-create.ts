@@ -4,9 +4,10 @@ import type { ApiResponse, ProjectCreateData } from '@/types/api.ts'
 
 const PROJECT_CREATE_URL = '/api/project/create'
 
-export async function createProject(name: string) {
+export async function createProject(name: string, appKey: string) {
   try {
     const response = await request.post<ApiResponse<ProjectCreateData>>(PROJECT_CREATE_URL, {
+      appKey: appKey.trim(),
       name: name.trim(),
     })
     const body = response.data
