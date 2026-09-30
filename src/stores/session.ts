@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { LoginData } from '@/types/api.ts'
+import { resetProjectContext } from './project-context.ts'
 
 const STORAGE_KEY = 'session'
 
@@ -31,12 +32,14 @@ export function getSession() {
 }
 
 export function saveSession(session: LoginData) {
+  resetProjectContext()
   current = session
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
   emit()
 }
 
 export function clearSession() {
+  resetProjectContext()
   current = null
   localStorage.removeItem(STORAGE_KEY)
   emit()

@@ -15,6 +15,13 @@ export const appRoutes = [
   { name: 'manage_role', path: '/manage/role', title: '角色管理', parent: '系统管理', directory: false },
   { name: 'manage_menu', path: '/manage/menu', title: '菜单管理', parent: '系统管理', directory: false },
   { name: 'manage_project', path: '/manage/project', title: '项目管理', parent: '系统管理', directory: false },
+  { name: 'data', path: '/data', title: '数据中心', parent: '', directory: true },
+  { name: 'data_query', path: '/data/query', title: '数据查询', parent: '数据中心', directory: false },
+  { name: 'data_log', path: '/data/log', title: '日志查询', parent: '数据中心', directory: false },
+  { name: 'data_template', path: '/data/template', title: '查询模板管理', parent: '数据中心', directory: false },
+  { name: 'server', path: '/server', title: '服务器管理', parent: '', directory: true },
+  { name: 'server_monitor', path: '/server/monitor', title: '性能监控', parent: '服务器管理', directory: false },
+  { name: 'server_operations', path: '/server/operations', title: '运维操作', parent: '服务器管理', directory: false },
 ] as const satisfies readonly AppRoute[]
 
 export type AppRouteName = (typeof appRoutes)[number]['name']

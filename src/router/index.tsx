@@ -8,6 +8,8 @@ import { MenuManagePage } from '@/pages/menu-manage/index.tsx'
 import { NotFoundPage } from '@/pages/not-found/index.tsx'
 import { ProjectManagePage } from '@/pages/project-manage/index.tsx'
 import { RoleManagePage } from '@/pages/role-manage/index.tsx'
+import { DataCenterLayout, DataQueryPage, QueryTemplatePage } from '@/pages/data-center/index.tsx'
+import { ServerManageLayout, ServerManagePage } from '@/pages/server-manage/index.tsx'
 import { useSession } from '@/stores/session.ts'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -74,6 +76,17 @@ export const router = createBrowserRouter([
       { path: 'manage/role', element: <RoleManagePage /> },
       { path: 'manage/menu', element: <MenuManagePage /> },
       { path: 'manage/project', element: <ProjectManagePage /> },
+      { path: 'server', element: <ServerManageLayout />, children: [
+        { index: true, element: <div className="admin-empty">请从左侧菜单进入</div> },
+        { path: 'monitor', element: <ServerManagePage mode="monitor" /> },
+        { path: 'operations', element: <ServerManagePage mode="operations" /> },
+      ] },
+      { path: 'data', element: <DataCenterLayout />, children: [
+        { index: true, element: <div className="admin-empty">请从左侧菜单进入</div> },
+        { path: 'query', element: <DataQueryPage category="data" /> },
+        { path: 'log', element: <DataQueryPage category="log" /> },
+        { path: 'template', element: <QueryTemplatePage /> },
+      ] },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

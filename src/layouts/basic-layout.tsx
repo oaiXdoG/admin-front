@@ -7,8 +7,8 @@ import {
   MenuUnfoldOutlined,
   ProjectOutlined,
 } from '@ant-design/icons'
-import { App, Breadcrumb, Dropdown, Form, Input, Layout, Menu, Modal, Select } from 'antd'
-import { useEffect, useState } from 'react'
+import { Alert, App, Breadcrumb, Button, Dropdown, Form, Input, Layout, Menu, Modal, Select, Space, Spin } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import type { LayoutOutletContext, ProjectCreateValues } from '@/layouts/context.ts'
@@ -18,6 +18,7 @@ import { switchProject } from '@/services/project-switch.ts'
 import { fetchAccessMenus } from '@/services/access-menu.ts'
 import { findRouteByName, findRouteByPath, type AppRoutePath } from '@/router/routes.ts'
 import { clearSession, useSession } from '@/stores/session.ts'
+import { beginProjectChange, completeProjectChange, failProjectChange, getProjectContext, prepareProjectContext, useProjectContext } from '@/stores/project-context.ts'
 import type { MenuRecord, ProjectListData } from '@/types/api.ts'
 import './basic-layout.css'
 
@@ -68,9 +69,12 @@ export function BasicLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const session = useSession()
+  const projectContext = useProjectContext()
+  const syncSequence = useRef(0)
   const [projects, setProjects] = useState<ProjectListData | null>(null)
   const [accessMenus, setAccessMenus] = useState<MenuRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -80,45 +84,75 @@ export function BasicLayout() {
   const [form] = Form.useForm<ProjectCreateValues>()
 
   useEffect(() => {
+    if (projectContext.phase !== 'ready') Modal.destroyAll()
+  }, [projectContext.phase])
+
+  const synchronizeProjects = useCallback(async (sequence: number, expectedProjectId?: number) => {
+    const projectData = await fetchProjectList()
+    if (sequence !== syncSequence.current) return
+    if (expectedProjectId !== undefined && projectData.currentProjectId !== expectedProjectId) {
+      setProjects({ ...projectData, currentProjectId: expectedProjectId })
+      prepareProjectContext(expectedProjectId)
+      const text = '项目已发生变化，请重新切换到正确项目后重试'
+      failProjectChange(text, true)
+      throw new Error(text)
+    }
+    setProjects(projectData)
+    prepareProjectContext(projectData.currentProjectId)
+    const menuData = await fetchAccessMenus()
+    if (sequence !== syncSequence.current) return
+    setAccessMenus(menuData)
+    completeProjectChange()
+    setInitialized(true)
+  }, [])
+
+  function reportProjectError(error: unknown, fallback: string) {
+    const text = errorMessage(error, fallback)
+    if (getProjectContext().phase !== 'mismatch') failProjectChange(text)
+    setAccessMenus([])
+    message.error(text)
+  }
+
+  useEffect(() => {
     if (!session) {
       return
     }
-    let cancelled = false
+    const sequence = ++syncSequence.current
+    beginProjectChange()
     setLoading(true)
-    Promise.all([fetchProjectList(), fetchAccessMenus()])
-      .then(([projectData, menuData]) => {
-        if (!cancelled) {
-          setProjects(projectData)
-          setAccessMenus(menuData)
-        }
-      })
+    setInitialized(false)
+    void synchronizeProjects(sequence)
       .catch((error: unknown) => {
-        if (!cancelled) {
-          message.error(errorMessage(error, '获取项目列表失败'))
+        if (sequence === syncSequence.current) {
+          const text = errorMessage(error, '获取项目信息失败')
+          if (getProjectContext().phase !== 'mismatch') failProjectChange(text)
+          setAccessMenus([])
+          message.error(text)
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (sequence === syncSequence.current) {
           setLoading(false)
         }
       })
     return () => {
-      cancelled = true
+      syncSequence.current++
     }
-  }, [session])
+  }, [session, synchronizeProjects, message])
 
   const current = projects?.projects.find((item) => item.projectId === projects.currentProjectId)
   const currentRoute = findRouteByPath(location.pathname)
-  const allowedPaths = new Set<AppRoutePath>()
-  for (const menu of accessMenus) {
-    const route = findRouteByName(menu.routeName) ?? findRouteByPath(menu.routePath)
-    if (route) {
-      allowedPaths.add(route.path)
+  const allowedPaths = useMemo(() => {
+    const paths = new Set<AppRoutePath>()
+    for (const menu of accessMenus) {
+      const route = findRouteByName(menu.routeName) ?? findRouteByPath(menu.routePath)
+      if (route) paths.add(route.path)
     }
-  }
+    return paths
+  }, [accessMenus])
   const canManage = allowedPaths.has('/manage/project')
   useEffect(() => {
-    if (loading || !currentRoute || allowedPaths.has(currentRoute.path)) {
+    if (loading || switching || projectContext.phase !== 'ready' || !currentRoute || allowedPaths.has(currentRoute.path)) {
       return
     }
     if (canManage) {
@@ -126,71 +160,90 @@ export function BasicLayout() {
       return
     }
     navigate('/', { replace: true, state: { blank: true } })
-  }, [location.pathname, canManage, loading])
+  }, [currentRoute, canManage, allowedPaths, loading, switching, projectContext.phase, navigate])
 
   useEffect(() => {
-    if (!currentRoute || !allowedPaths.has(currentRoute.path)) {
-      return
-    }
-    setTabs((prev) => (prev.includes(currentRoute.path) ? prev : [...prev, currentRoute.path]))
-  }, [location.pathname, canManage])
+    if (loading || switching || projectContext.phase !== 'ready') return
+    setTabs((previous) => {
+      const next = previous.filter((path) => allowedPaths.has(path))
+      if (currentRoute && allowedPaths.has(currentRoute.path) && !next.includes(currentRoute.path)) next.push(currentRoute.path)
+      return next.join(',') === previous.join(',') ? previous : next
+    })
+  }, [currentRoute, allowedPaths, loading, switching, projectContext.phase])
 
   if (!session) {
     return null
   }
 
-  const mustCreate = canManage && projects !== null && projects.projects.length === 0
+  const mustCreate = projectContext.phase === 'ready' && canManage && projects !== null && projects.projects.length === 0
   const createVisible = mustCreate || createOpen
 
   async function refreshProjects() {
+    const sequence = ++syncSequence.current
+    beginProjectChange()
     setLoading(true)
     try {
-      const projectData = await fetchProjectList()
-      setProjects(projectData)
-      setAccessMenus(await fetchAccessMenus())
+      await synchronizeProjects(sequence)
+    } catch (error) {
+      if (sequence === syncSequence.current) reportProjectError(error, '获取项目信息失败')
     } finally {
-      setLoading(false)
+      if (sequence === syncSequence.current) setLoading(false)
     }
   }
 
   async function onSwitch(projectId: number) {
-    if (!projects || projectId === projects.currentProjectId) {
+    if (!projects || switching || loading || creating || (projectId === projects.currentProjectId && projectContext.phase === 'ready')) {
       return
     }
+    const sequence = ++syncSequence.current
+    beginProjectChange()
     setSwitching(true)
+    setLoading(true)
     try {
-      await switchProject(projectId)
-      const [projectData, menuData] = await Promise.all([fetchProjectList(), fetchAccessMenus()])
-      setProjects(projectData)
-      setAccessMenus(menuData)
+      const switched = await switchProject(projectId)
+      if (sequence !== syncSequence.current) return
+      if (switched.currentProjectId !== projectId) throw new Error('服务器返回的项目不一致，请重新切换项目')
+      setProjects((previous) => previous ? { ...previous, currentProjectId: projectId } : previous)
+      prepareProjectContext(projectId)
+      await synchronizeProjects(sequence, projectId)
     } catch (error) {
-      message.error(errorMessage(error, '切换项目失败'))
+      if (sequence === syncSequence.current) reportProjectError(error, '切换项目失败')
     } finally {
-      setSwitching(false)
+      if (sequence === syncSequence.current) {
+        setSwitching(false)
+        setLoading(false)
+      }
     }
   }
 
   async function onCreate(values: ProjectCreateValues) {
     setCreating(true)
+    let sequence: number | undefined
     try {
-      await createProject(values.name, values.appKey)
-      const [projectData, menuData] = await Promise.all([fetchProjectList(), fetchAccessMenus()])
-      setProjects(projectData)
-      setAccessMenus(menuData)
+      const created = await createProject(values.name, values.appKey)
       setCreateOpen(false)
       form.resetFields()
       message.success('项目已创建')
+      sequence = ++syncSequence.current
+      beginProjectChange()
+      setLoading(true)
+      setProjects((previous) => ({ currentProjectId: created.projectId, projects: [...(previous?.projects ?? []), { ...created, roleName: created.roleName ?? '' }] }))
+      prepareProjectContext(created.projectId)
+      await synchronizeProjects(sequence, created.projectId)
       if (location.pathname !== '/manage/project') {
         navigate('/manage/project')
       }
     } catch (error) {
-      message.error(errorMessage(error, '创建项目失败'))
+      if (sequence === undefined) message.error(errorMessage(error, '创建项目失败'))
+      else if (sequence === syncSequence.current) reportProjectError(error, '项目已创建，请重新切换项目')
     } finally {
       setCreating(false)
+      if (sequence !== undefined && sequence === syncSequence.current) setLoading(false)
     }
   }
 
   function openRoute(path: string) {
+    if (loading || switching || projectContext.phase !== 'ready') return
     const route = findRouteByPath(path) ?? findRouteByName(path)
     if (!route || !allowedPaths.has(route.path)) {
       return
@@ -221,6 +274,7 @@ export function BasicLayout() {
   const outletContext: LayoutOutletContext = {
     projects,
     loading,
+    projectRevision: projectContext.revision,
     creating,
     createOpen,
     mustCreate,
@@ -279,7 +333,7 @@ export function BasicLayout() {
               placeholder={loading ? '加载中' : '还没有项目'}
               value={projects?.currentProjectId ?? undefined}
               loading={switching}
-              disabled={loading || switching || !projects || projects.projects.length === 0}
+              disabled={loading || switching || creating || !projects || projects.projects.length === 0}
               options={projects?.projects.map((item) => ({
                 value: item.projectId,
                 label: item.name,
@@ -314,7 +368,7 @@ export function BasicLayout() {
             }
             return (
               <div key={path} className={path === location.pathname ? 'admin-tab is-active' : 'admin-tab'}>
-                <button type="button" onClick={() => navigate(path)}>
+                <button type="button" onClick={() => openRoute(path)}>
                   {route.title}
                 </button>
                 <button
@@ -330,7 +384,9 @@ export function BasicLayout() {
           })}
         </div>
         <Layout.Content className="admin-content">
-          <Outlet context={outletContext} />
+          {(loading || switching) && <div className="admin-empty"><Space><Spin /><span>{switching ? '正在切换项目' : '正在加载项目信息'}</span></Space></div>}
+          {!loading && !switching && projectContext.phase !== 'ready' && <Alert type="warning" showIcon title="请确认当前项目" description={projectContext.message || '项目状态未确认，请重新选择项目'} action={<Button onClick={() => { if (projects?.currentProjectId != null) void onSwitch(projects.currentProjectId); else void refreshProjects() }}>{current ? `切换到「${current.name}」` : '重新获取项目'}</Button>} />}
+          {initialized && <div className="admin-page-content" hidden={loading || switching || projectContext.phase !== 'ready' || (!!currentRoute && !allowedPaths.has(currentRoute.path))}><Outlet context={outletContext} /></div>}
         </Layout.Content>
       </Layout>
       <Modal
@@ -339,13 +395,13 @@ export function BasicLayout() {
         okText="创建"
         cancelText="取消"
         confirmLoading={creating}
-        closable={!mustCreate}
-        maskClosable={!mustCreate}
-        keyboard={!mustCreate}
+        closable={!mustCreate && !creating}
+        maskClosable={!mustCreate && !creating}
+        keyboard={!mustCreate && !creating}
         cancelButtonProps={mustCreate ? { style: { display: 'none' } } : undefined}
         onOk={() => form.submit()}
         onCancel={() => {
-          if (!mustCreate) {
+          if (!mustCreate && !creating) {
             form.resetFields()
             setCreateOpen(false)
           }

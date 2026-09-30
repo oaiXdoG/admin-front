@@ -1,0 +1,82 @@
+.server-section { padding: 22px 24px; background: #fff; border-block: 1px solid #e7ebf0; }
+.server-identity { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.server-identity h2 { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
+.server-identity > div > span { color: #7b8493; font-size: 13px; }
+.server-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 26px; }
+.server-metric { padding: 0 24px; border-left: 1px solid #edf0f5; }
+.server-metric:first-child { padding-left: 0; border: 0; }
+.server-metric > span { display: block; font-size: 13px; color: #7b8493; }
+.server-metric strong { display: block; margin-top: 12px; font-size: 27px; line-height: 34px; font-weight: 600; }
+.server-metric strong.server-uptime { font-size: 19px; }
+.server-metric .server-metric-foot { margin-top: 14px; overflow-wrap: anywhere; }
+.server-meter { height: 4px; background: #edf0f5; margin-top: 18px; }
+.server-meter i { display: block; height: 100%; }
+.server-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+.server-toolbar h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.server-toolbar-actions { display: flex; gap: 8px; align-items: center; }
+.server-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.server-chart h4 { margin: 0 0 12px; font-size: 13px; font-weight: 500; }
+.server-chart .ant-empty { min-height: 160px; margin-block: 20px; display: flex; flex-direction: column; justify-content: center; }
+.server-network { margin-top: 24px; padding-top: 22px; border-top: 1px solid #edf0f5; }
+.server-update-time, .server-record-count { color: #8b95a4; font-size: 12px; }
+.server-update-time { text-align: right; margin-top: 12px; }
+.server-details { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+.server-details span, .server-staged > span { color: #7b8493; font-size: 13px; }
+.server-details strong { display: block; font-size: 14px; font-weight: 500; margin-top: 8px; overflow-wrap: anywhere; }
+.server-upload-icon { font-size: 30px; color: #646cff; }
+.server-upload-name { font-size: 14px; margin: 12px 0 8px; overflow-wrap: anywhere; }
+.server-upload-size { color: #8b95a4; font-size: 12px; margin: 0; }
+.server-package-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+.server-staged { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 20px; padding-top: 18px; border-top: 1px solid #edf0f5; }
+.server-staged strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.server-confirm p { margin: 8px 0; overflow-wrap: anywhere; }
+.server-process-search { width: 280px; }
+.server-selected-process > td { background: #f4f5ff; }
+.server-process-form { max-height: 65vh; overflow-y: auto; padding: 8px 4px 0; }
+.server-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.server-script-fields { border-top: 1px solid #edf0f5; padding-top: 18px; }
+.server-script-fields h4 { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+.server-preview-monitor-content { height: calc(100dvh - 56px); overflow: hidden; }
+.admin-page.server-monitor-layout { display: flex; height: 100%; min-height: 0; overflow: hidden; }
+.server-monitor-dashboard { flex: 0 1 auto; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
+.admin-page.server-performance-compact { min-height: 0; gap: 12px; }
+.server-performance-compact .server-section { padding: 14px 18px; }
+.server-performance-compact .server-metrics { margin-top: 14px; }
+.server-performance-compact .server-metric strong { margin-top: 6px; font-size: 23px; }
+.server-performance-compact .server-meter { margin-top: 10px; }
+.server-performance-compact > .server-section:last-child { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; }
+.server-performance-compact .server-toolbar { grid-column: 1 / -1; margin: 0; }
+.server-performance-compact .server-chart-grid { display: contents; }
+.server-performance-compact .server-network { margin: 0; padding: 0; border: 0; }
+.server-performance-compact .server-update-time { grid-column: 1 / -1; margin: 0; }
+.server-performance-compact .server-chart .ant-empty { min-height: 100px; margin-block: 12px; }
+.server-process-list { display: flex; flex-direction: column; flex: 1 0 180px; min-height: 0; padding: 14px 18px; overflow: hidden; }
+.server-process-list .server-toolbar { flex-shrink: 0; margin-bottom: 12px; }
+.server-process-list .ant-table-wrapper { flex: 1; min-height: 0; }
+.server-process-list .ant-table-wrapper > .ant-spin { height: 100%; }
+.server-process-list .ant-spin-container { display: flex; flex-direction: column; height: 100%; }
+.server-process-list .ant-table { flex: 1; min-height: 0; }
+.server-process-list .ant-table-container { display: flex; flex-direction: column; height: 100%; }
+.server-process-list .ant-table-header { flex-shrink: 0; }
+.server-process-list .ant-table-body { flex: 1; min-height: 0; }
+.server-process-list .ant-table-body td { padding-block: 10px; }
+.server-operations-drawer .ant-drawer-body { padding: 16px; background: #f5f7fb; }
+.server-operations-drawer .server-section { padding: 18px; }
+@media (max-width: 767px) {
+  .server-section { padding: 18px 14px; }
+  .server-identity { align-items: flex-start; }
+  .server-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 0; }
+  .server-metric { padding-inline: 16px; }
+  .server-metric:nth-child(3) { padding-left: 0; border: 0; }
+  .server-metric strong { font-size: 23px; }
+  .server-metric strong.server-uptime { font-size: 16px; }
+  .server-toolbar { flex-wrap: wrap; }
+  .server-toolbar-actions { flex-wrap: wrap; }
+  .server-chart-grid { grid-template-columns: 1fr; gap: 24px; }
+  .server-details { grid-template-columns: 1fr; gap: 16px; }
+  .server-process-search { width: 100%; }
+  .server-toolbar > .ant-space { width: 100%; }
+  .server-config-grid { grid-template-columns: 1fr; gap: 0; }
+  .server-performance-compact > .server-section:last-child { grid-template-columns: 1fr; }
+  .server-process-list, .server-performance-compact .server-section { padding-inline: 14px; }
+}

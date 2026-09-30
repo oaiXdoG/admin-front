@@ -1,5 +1,5 @@
 import { App, Button, Card, Form, Input, InputNumber, Modal, Radio, Select, Space, Switch, Table, Tag } from 'antd'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { FileTextOutlined, FolderOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 import type { Key } from 'react'
 import { appRoutes } from '@/router/routes.ts'
@@ -8,9 +8,11 @@ import type { MenuRecord, MenuWrite } from '@/types/api.ts'
 
 type MenuNode = MenuRecord & {
   children?: MenuNode[]
+  depth?: number
 }
 
 type FormValues = {
+  menuId: number
   menuType: number
   name: string
   icon?: string
@@ -40,11 +42,12 @@ function buildTree(list: MenuRecord[]) {
     parent.children = parent.children ?? []
     parent.children.push(node)
   }
-  const sortNodes = (items: MenuNode[]) => {
+  const sortNodes = (items: MenuNode[], depth = 0) => {
     items.sort((left, right) => left.sort - right.sort || left.id - right.id)
     for (const item of items) {
+      item.depth = depth
       if (item.children?.length) {
-        sortNodes(item.children)
+        sortNodes(item.children, depth + 1)
       }
     }
   }
@@ -93,6 +96,7 @@ export function MenuManagePage() {
 
   function openCreate(parent: MenuRecord | null) {
     form.setFieldsValue({
+      menuId: undefined,
       menuType: 2,
       name: '',
       icon: '',
@@ -107,6 +111,7 @@ export function MenuManagePage() {
 
   function openEdit(record: MenuRecord) {
     form.setFieldsValue({
+      menuId: record.id,
       menuType: record.menuType,
       name: record.name,
       icon: record.icon,
@@ -127,7 +132,7 @@ export function MenuManagePage() {
     try {
       if (editor.mode === 'create') {
         const parentId = editor.parent?.id
-        await createMenu(toWrite(values, parentId && parentId > 0 ? parentId : undefined))
+        await createMenu({ ...toWrite(values, parentId && parentId > 0 ? parentId : undefined), menuId: values.menuId })
         message.success('菜单已新增')
       } else {
         await updateMenu(editor.record.id, toWrite(values, editor.record.parentId))
@@ -178,7 +183,9 @@ export function MenuManagePage() {
           key={rows.map((item) => item.id).join(',')}
           className="admin-selection-table admin-menu-table"
           rowKey="id"
+          rowClassName={(record) => record.menuType === 1 ? 'admin-menu-directory-row' : ''}
           tableLayout="fixed"
+          scroll={{ x: 1600 }}
           loading={loading}
           pagination={false}
           rowSelection={{ columnWidth: 72, checkStrictly: false, selectedRowKeys, onChange: setSelectedRowKeys }}
@@ -186,7 +193,17 @@ export function MenuManagePage() {
           dataSource={buildTree(rows.filter((item) => !keyword || `${item.name} ${item.routeName} ${item.routePath}`.toLowerCase().includes(keyword.toLowerCase())))}
           columns={[
             { title: '菜单 ID', dataIndex: 'id', className: 'admin-index-column', width: 96, align: 'center' as const },
-            { title: '菜单名称', dataIndex: 'name', align: 'center' as const, ellipsis: true },
+            {
+              title: '菜单名称',
+              dataIndex: 'name',
+              ellipsis: true,
+              render: (name: string, record) => (
+                <span className={`admin-menu-name${record.menuType === 1 ? ' admin-menu-directory-name' : ''}`} style={{ paddingInlineStart: (record.depth ?? 0) * 24 }} title={name}>
+                  {record.menuType === 1 ? <FolderOutlined /> : <FileTextOutlined />}
+                  <span className="admin-menu-name-text">{name}</span>
+                </span>
+              ),
+            },
             {
               title: '类型',
               dataIndex: 'menuType',
@@ -247,6 +264,12 @@ export function MenuManagePage() {
         destroyOnHidden
       >
         <Form form={form} layout="vertical" requiredMark={false} onFinish={onSubmit}>
+          <Form.Item label="菜单 ID" name="menuId" rules={[
+            { required: true, message: '请输入菜单 ID' },
+            { validator: (_, value: number | null | undefined) => value == null || (Number.isSafeInteger(value) && value > 0) ? Promise.resolve() : Promise.reject(new Error('菜单 ID 必须为安全范围内的正整数')) },
+          ]}>
+            <InputNumber min={1} max={Number.MAX_SAFE_INTEGER} precision={0} disabled={editor?.mode === 'edit'} placeholder="请输入菜单 ID" style={{ width: '100%' }} />
+          </Form.Item>
           <Form.Item label="已注册路由">
             <Select
               allowClear

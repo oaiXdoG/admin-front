@@ -47,6 +47,16 @@ export type AccountCreateData = {
 
 export type AccountRecord = AccountCreateData
 
+export type AccountUpdateValues = {
+  username: string
+  password?: string
+}
+
+export type AccountMembership = {
+  projectId: number
+  roleId: number
+}
+
 export type MenuRecord = {
   id: number
   parentId: number

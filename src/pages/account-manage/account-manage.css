@@ -1,0 +1,11 @@
+.account-editor-body { display: flex; flex-direction: column; gap: 20px; max-height: 65vh; overflow-y: auto; padding: 8px 2px; }
+.account-editor-body .ant-form-item:last-child { margin-bottom: 0; }
+.account-identity { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 20px; color: #6b7280; font-size: 13px; }
+.account-project-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; gap: 12px; margin-bottom: 16px; }
+.account-project-row .ant-form-item { margin: 0; }
+.account-remove-project { margin-top: 30px; }
+@media (max-width: 767px) {
+  .account-project-row { grid-template-columns: minmax(0, 1fr) 32px; gap: 12px; border-bottom: 1px solid #edf0f5; padding-bottom: 16px; }
+  .account-project-row .ant-form-item { grid-column: 1; }
+  .account-remove-project { grid-column: 2; grid-row: 1; }
+}

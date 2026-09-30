@@ -38,7 +38,7 @@ export async function fetchMenuList() {
   }
 }
 
-export async function createMenu(body: MenuWrite) {
+export async function createMenu(body: MenuWrite & { menuId: number }) {
   try {
     const response = await request.post<ApiResponse<MenuRecord>>(MENU_CREATE_URL, body)
     const result = await readMenu(response, '新增菜单失败')

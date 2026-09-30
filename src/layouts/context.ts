@@ -8,6 +8,7 @@ export type ProjectCreateValues = {
 export type LayoutOutletContext = {
   projects: ProjectListData | null
   loading: boolean
+  projectRevision: number
   creating: boolean
   createOpen: boolean
   mustCreate: boolean
