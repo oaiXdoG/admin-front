@@ -100,7 +100,7 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
     if (!data) return;
     editor.value = data;
     formApi.setState({ schema: useFormSchema(data.mode === 'edit') });
-    formApi.resetForm();
+    formApi.reset();
     if (data.mode === 'edit') {
       const { record } = data;
       formApi.setValues({

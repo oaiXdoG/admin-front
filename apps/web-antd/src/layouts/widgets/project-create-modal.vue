@@ -29,7 +29,7 @@ const [Modal, modalApi] = useVbenModal({
   },
   onClosed() {
     projectStore.createOpen = false;
-    formApi.resetForm();
+    formApi.reset();
   },
 });
 

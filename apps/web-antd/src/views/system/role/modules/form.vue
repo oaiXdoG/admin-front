@@ -44,7 +44,7 @@ const [Modal, modalApi] = useVbenModal<null | RoleRecord>({
   onOpenChange(isOpen) {
     if (!isOpen) return;
     editing.value = modalApi.getData() ?? null;
-    formApi.resetForm();
+    formApi.reset();
     if (editing.value) {
       const { code, description, name, status } = editing.value;
       formApi.setValues({ code, description, name, status });

@@ -58,7 +58,7 @@ const [Modal, modalApi] = useVbenModal<AccountRecord | null>({
     formApi.setState({
       schema: editing.value ? useEditFormSchema() : useCreateFormSchema(),
     });
-    formApi.resetForm();
+    formApi.reset();
     if (editing.value) {
       formApi.setValues({ password: '', username: editing.value.username });
     }
