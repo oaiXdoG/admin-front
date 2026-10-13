@@ -2,15 +2,15 @@
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { RoleRecord } from '#/api/types';
 
-import { ref } from 'vue';
+import { h, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message, Modal, Tag } from 'ant-design-vue';
+import { Button, message, Modal, Switch, Tag } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { getRoleListApi, removeRoleApi } from '#/api';
+import { getRoleListApi, removeRoleApi, updateRoleApi } from '#/api';
 
 import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
@@ -83,6 +83,39 @@ function onRefresh() {
   gridApi.query();
 }
 
+const statusChanging = ref<null | number>(null);
+
+/** 在列表里直接启用或停用角色，停用后拥有该角色的账号会失去对应菜单 */
+function onStatusChange(row: RoleRecord, checked: boolean) {
+  const status = checked ? 1 : 2;
+  Modal.confirm({
+    cancelText: '取消',
+    content: h('div', [
+      `确定${checked ? '启用' : '停用'}角色「${row.name}」吗？`,
+      checked
+        ? ''
+        : h(
+            'div',
+            { class: 'mt-1 text-xs' },
+            '停用后，拥有该角色的账号将失去这个角色的全部菜单。',
+          ),
+    ]),
+    okText: checked ? '启用' : '停用',
+    title: `${checked ? '启用' : '停用'}角色`,
+    async onOk() {
+      statusChanging.value = row.id;
+      try {
+        const { code, description, name } = row;
+        await updateRoleApi(row.id, { code, description, name, status });
+        message.success(`角色已${checked ? '启用' : '停用'}`);
+        onRefresh();
+      } finally {
+        statusChanging.value = null;
+      }
+    },
+  });
+}
+
 function onRemove(row: RoleRecord) {
   Modal.confirm({
     cancelText: '取消',
@@ -137,8 +170,19 @@ async function onRemoveSelected() {
         </Button>
       </template>
       <template #status="{ row }">
-        <Tag :color="row.status === 1 ? 'success' : 'warning'">
-          {{ row.status === 1 ? '启用' : '停用' }}
+        <Tag v-if="row.builtIn" color="success">启用</Tag>
+        <Switch
+          v-else
+          :checked="row.status === 1"
+          :loading="statusChanging === row.id"
+          checked-children="启用"
+          un-checked-children="停用"
+          @change="(checked) => onStatusChange(row, !!checked)"
+        />
+      </template>
+      <template #globalRole="{ row }">
+        <Tag :color="row.globalRole ? 'purple' : 'default'">
+          {{ row.globalRole ? '平台' : '项目' }}
         </Tag>
       </template>
       <template #action="{ row }">

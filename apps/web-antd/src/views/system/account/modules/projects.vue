@@ -26,8 +26,13 @@ const loading = ref(false);
 const loadError = ref('');
 let sequence = 0;
 
+// 全局角色（超级管理员）只能在账号级分配，不能作为项目角色
+const projectRoles = computed(() =>
+  roles.value.filter((role) => !role.globalRole),
+);
+
 const roleOptions = computed(() =>
-  roles.value.map((role) => ({
+  projectRoles.value.map((role) => ({
     disabled: role.status !== 1,
     label: `${role.name}（${role.code}）${role.status === 1 ? '' : ' · 已停用'}`,
     value: role.id,
@@ -78,7 +83,7 @@ const [Modal, modalApi] = useVbenModal<AccountRecord>({
     const invalid = items.some(
       (item) =>
         !projectStore.projects.some((p) => p.projectId === item.projectId) ||
-        !roles.value.some((r) => r.id === item.roleId && r.status === 1),
+        !projectRoles.value.some((r) => r.id === item.roleId && r.status === 1),
     );
     if (invalid) {
       message.error('请选择可用的项目和角色');

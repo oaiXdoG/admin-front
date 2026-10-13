@@ -11,17 +11,19 @@ import { useVbenForm } from '#/adapter/form';
 import { createMenuApi, updateMenuApi } from '#/api';
 import { registeredRoutes } from '#/router/registry';
 
-import { useFormSchema } from '../data';
+import { buildParentTree, useFormSchema } from '../data';
 
-export type MenuEditor =
+export type MenuEditor = { menus: MenuRecord[] } & (
   | { mode: 'create'; parent: MenuRecord | null }
-  | { mode: 'edit'; record: MenuRecord };
+  | { mode: 'edit'; record: MenuRecord }
+);
 
 interface FormValues {
   hidden: boolean;
   icon?: string;
   menuId: number;
   menuType: number;
+  parentId: number;
   name: string;
   routeName?: string;
   routePath?: string;
@@ -35,22 +37,28 @@ const editor = ref<MenuEditor | null>(null);
 
 const [Form, formApi] = useVbenForm({
   handleValuesChange(values, fieldsChanged) {
-    // 选择已注册路由后自动填入类型、路由名称和路径
+    // 选择已注册路由后自动填入名称、路由名称和路径
     if (!fieldsChanged.includes('registeredRoute')) return;
     const route = registeredRoutes.find(
       (item) => item.name === values.registeredRoute,
     );
-    if (!route) return;
     formApi.setValues({
-      menuType: route.directory ? 1 : 2,
-      name: values.name || route.title,
-      routeName: route.name,
-      routePath: route.path,
+      name: values.name || route?.title || '',
+      routeName: route?.name ?? '',
+      routePath: route?.path ?? '',
     });
   },
-  schema: useFormSchema(false),
+  schema: useFormSchema(false, []),
   showDefaultActions: false,
 });
+
+function descendantIds(menus: MenuRecord[], id: number): number[] {
+  const children = menus.filter((menu) => menu.parentId === id);
+  return children.flatMap((child) => [
+    child.id,
+    ...descendantIds(menus, child.id),
+  ]);
+}
 
 function toWrite(values: FormValues, parentId?: number): MenuWrite {
   return {
@@ -74,18 +82,15 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
     const values = await formApi.getValues<FormValues>();
     modalApi.lock();
     try {
+      const parentId = values.parentId > 0 ? values.parentId : undefined;
       if (editor.value.mode === 'create') {
-        const parentId = editor.value.parent?.id;
         await createMenuApi({
-          ...toWrite(values, parentId && parentId > 0 ? parentId : undefined),
+          ...toWrite(values, parentId),
           menuId: values.menuId,
         });
         message.success('菜单已新增');
       } else {
-        await updateMenuApi(
-          editor.value.record.id,
-          toWrite(values, editor.value.record.parentId),
-        );
+        await updateMenuApi(editor.value.record.id, toWrite(values, parentId));
         message.success('菜单已修改');
       }
       emit('success');
@@ -99,11 +104,28 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
     const data = modalApi.getData();
     if (!data) return;
     editor.value = data;
-    formApi.setState({ schema: useFormSchema(data.mode === 'edit') });
+    const isEdit = data.mode === 'edit';
+    const excluded = isEdit ? descendantIds(data.menus, data.record.id) : [];
+    const parentTree = buildParentTree(
+      data.menus.filter((menu) => !excluded.includes(menu.id)),
+      isEdit ? data.record.id : undefined,
+    );
+    formApi.setState({ schema: useFormSchema(isEdit, parentTree) });
     formApi.reset();
-    if (data.mode === 'edit') {
-      const { record } = data;
+    if (data.mode === 'create') {
+      const maxId = Math.max(0, ...data.menus.map((menu) => menu.id));
       formApi.setValues({
+        menuId: maxId + 1,
+        parentId: data.parent?.id ?? 0,
+      });
+    } else {
+      const { record } = data;
+      const registered = registeredRoutes.some(
+        (item) => item.name === record.routeName,
+      );
+      formApi.setValues({
+        parentId: record.parentId || 0,
+        registeredRoute: registered ? record.routeName : undefined,
         hidden: record.hidden,
         icon: record.icon,
         menuId: record.id,

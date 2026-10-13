@@ -8,12 +8,14 @@ import { message } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 import { updateProjectApi } from '#/api';
 
-import { useProjectFormSchema } from '../data';
+import { generateAppKey, useProjectFormSchema } from '../data';
 
 const emit = defineEmits<{ success: [] }>();
 
 const [Form, formApi] = useVbenForm({
-  schema: useProjectFormSchema(),
+  schema: useProjectFormSchema(() =>
+    formApi.setFieldValue('appKey', generateAppKey()),
+  ),
   showDefaultActions: false,
 });
 

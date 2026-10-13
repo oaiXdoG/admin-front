@@ -5,12 +5,17 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { useVbenForm } from '#/adapter/form';
 import { useProjectStore } from '#/store';
-import { useProjectFormSchema } from '#/views/system/project/data';
+import {
+  generateAppKey,
+  useProjectFormSchema,
+} from '#/views/system/project/data';
 
 const projectStore = useProjectStore();
 
 const [Form, formApi] = useVbenForm({
-  schema: useProjectFormSchema(),
+  schema: useProjectFormSchema(() =>
+    formApi.setFieldValue('appKey', generateAppKey()),
+  ),
   showDefaultActions: false,
 });
 

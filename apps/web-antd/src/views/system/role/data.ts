@@ -84,6 +84,12 @@ export function useColumns(): VxeTableGridColumns {
     { align: 'left', field: 'code', minWidth: 140, title: '角色编码' },
     { align: 'left', field: 'description', minWidth: 180, title: '角色描述' },
     {
+      field: 'globalRole',
+      slots: { default: 'globalRole' },
+      title: '类型',
+      width: 100,
+    },
+    {
       field: 'status',
       slots: { default: 'status' },
       title: '角色状态',

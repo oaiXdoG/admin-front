@@ -4,16 +4,37 @@ import type { MenuEditor } from './modules/form.vue';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { MenuRecord } from '#/api/types';
 
+import { ref } from 'vue';
+
 import { Page, useVbenModal } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
-import { Button, message, Modal, Tag } from 'ant-design-vue';
+import { Button, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { getMenuListApi, removeMenuApi } from '#/api';
 
 import { MENU_TYPE_DIRECTORY, useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
+
+/** 完整菜单列表，供编辑弹窗选择上级目录和计算默认 ID */
+const allMenus = ref<MenuRecord[]>([]);
+/** 有子项的菜单 ID，这些目录不能直接删除 */
+const parentIds = ref(new Set<number>());
+
+/** 搜索时保留命中项的所有上级目录，避免树结构被打散 */
+function withAncestors(list: MenuRecord[], matched: MenuRecord[]) {
+  const byId = new Map(list.map((item) => [item.id, item]));
+  const result = new Map<number, MenuRecord>();
+  for (const item of matched) {
+    let current: MenuRecord | undefined = item;
+    while (current && !result.has(current.id)) {
+      result.set(current.id, current);
+      current = byId.get(current.parentId || 0);
+    }
+  }
+  return [...result.values()];
+}
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -34,15 +55,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async (_params, formValues: { keyword?: string }) => {
           const keyword = formValues.keyword?.trim().toLowerCase() ?? '';
           const list = await getMenuListApi();
-          const rows = list
-            .filter(
-              (item) =>
-                !keyword ||
-                `${item.name} ${item.routeName} ${item.routePath}`
-                  .toLowerCase()
-                  .includes(keyword),
-            )
-            .toSorted((a, b) => a.sort - b.sort || a.id - b.id);
+          allMenus.value = list;
+          parentIds.value = new Set(list.map((item) => item.parentId || 0));
+          const matched = list.filter((item) =>
+            `${item.name} ${item.routeName} ${item.routePath}`
+              .toLowerCase()
+              .includes(keyword),
+          );
+          const rows = (keyword ? withAncestors(list, matched) : list).toSorted(
+            (a, b) => a.sort - b.sort || a.id - b.id,
+          );
           return { items: rows, total: rows.length };
         },
       },
@@ -67,7 +89,12 @@ function onRefresh() {
   gridApi.query();
 }
 
-function openEditor(data: MenuEditor) {
+type EditorTarget =
+  | { mode: 'create'; parent: MenuRecord | null }
+  | { mode: 'edit'; record: MenuRecord };
+
+function openEditor(target: EditorTarget) {
+  const data: MenuEditor = { ...target, menus: allMenus.value };
   formModalApi.setData(data).open();
 }
 
@@ -137,9 +164,19 @@ function onRemove(row: MenuRecord) {
           >
             编辑
           </Button>
-          <Button danger size="small" type="link" @click="onRemove(row)">
-            删除
-          </Button>
+          <Tooltip
+            :title="parentIds.has(row.id) ? '下面还有子项，请先删除子项' : ''"
+          >
+            <Button
+              :disabled="parentIds.has(row.id)"
+              danger
+              size="small"
+              type="link"
+              @click="onRemove(row)"
+            >
+              删除
+            </Button>
+          </Tooltip>
         </template>
       </template>
     </Grid>

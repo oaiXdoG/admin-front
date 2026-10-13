@@ -81,7 +81,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
 
 export function useColumns(): VxeTableGridColumns {
   return [
-    { type: 'checkbox', width: 60 },
     { field: 'id', title: '用户 ID', width: 120 },
     { align: 'left', field: 'account', title: '登录名', width: 240 },
     { align: 'left', field: 'username', minWidth: 160, title: '显示名' },

@@ -7,13 +7,14 @@ export interface LoginResult {
   username: string;
 }
 
+/** 早期创建的项目没有 App Key 和创建时间，超级管理员的项目没有 roleId，这些字段可能缺失 */
 export interface ProjectItem {
   projectId: number;
-  appKey: string;
+  appKey?: string;
   name: string;
-  createdAt: number;
-  roleId: null | number;
-  roleName: string;
+  createdAt?: null | number;
+  roleId?: null | number;
+  roleName?: string;
 }
 
 export interface ProjectListResult {
