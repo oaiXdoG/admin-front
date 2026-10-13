@@ -73,6 +73,7 @@ export function useProjectFormSchema(
             componentProps: {
               allowClear: true,
               api: getProjectTemplateOptionsApi,
+              class: 'w-full',
               labelField: 'name',
               mode: 'multiple',
               placeholder: '选择后复制为本项目的角色，可不选',

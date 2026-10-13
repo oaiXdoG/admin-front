@@ -41,6 +41,7 @@ const [Form, formApi] = useVbenForm({
       component: 'ApiSelect',
       componentProps: {
         api: () => getMemberRoleOptionsApi(projectStore.currentProjectId ?? 0),
+        class: 'w-full',
         labelField: 'name',
         placeholder: '选择本项目的角色',
         valueField: 'id',

@@ -10,7 +10,8 @@ export async function getMenuListApi() {
   return data?.list ?? [];
 }
 
-export async function createMenuApi(data: MenuWrite & { menuId: number }) {
+/** 菜单 ID 由服务器按顶级目录分段生成 */
+export async function createMenuApi(data: MenuWrite) {
   return requestClient.post<MenuRecord>('/menu/create', data);
 }
 

@@ -44,32 +44,8 @@ export function buildParentTree(menus: MenuRecord[], excludeId?: number) {
   return [{ children: build(0), title: '顶级（无上级）', value: 0 }];
 }
 
-export function useFormSchema(
-  isEdit: boolean,
-  parentTree: ParentNode[],
-): VbenFormSchema[] {
+export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
   return [
-    {
-      component: 'InputNumber',
-      componentProps: {
-        class: 'w-full',
-        disabled: isEdit,
-        max: Number.MAX_SAFE_INTEGER,
-        min: 1,
-        placeholder: '请输入菜单 ID',
-        precision: 0,
-      },
-      fieldName: 'menuId',
-      help: isEdit ? undefined : '默认填入当前最大 ID + 1，可修改',
-      label: '菜单 ID',
-      rules: z
-        .number({ message: '请输入菜单 ID' })
-        .int()
-        .positive({ message: '菜单 ID 必须为安全范围内的正整数' })
-        .max(Number.MAX_SAFE_INTEGER, {
-          message: '菜单 ID 必须为安全范围内的正整数',
-        }),
-    },
     {
       component: 'TreeSelect',
       componentProps: {
@@ -246,7 +222,6 @@ export function useColumns(): VxeTableGridColumns {
       title: '菜单名称',
       treeNode: true,
     },
-    { field: 'id', title: '菜单 ID', width: 100 },
     {
       field: 'scope',
       slots: { default: 'scope' },

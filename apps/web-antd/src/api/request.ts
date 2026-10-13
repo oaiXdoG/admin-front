@@ -98,8 +98,15 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   return client;
 }
 
+// 数据库在远端时一次写操作可能要好几秒，默认 10 秒超时容易误判失败
+const TIMEOUT = 30_000;
+
 export const requestClient = createRequestClient(apiURL, {
   responseReturn: 'data',
+  timeout: TIMEOUT,
 });
 
-export const baseRequestClient = new RequestClient({ baseURL: apiURL });
+export const baseRequestClient = new RequestClient({
+  baseURL: apiURL,
+  timeout: TIMEOUT,
+});
