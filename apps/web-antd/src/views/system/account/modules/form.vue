@@ -35,6 +35,7 @@ const [Modal, modalApi] = useVbenModal<AccountRecord | null>({
       if (editing.value) {
         await updateAccountApi(editing.value.id, {
           password: values.password,
+          remark: values.remark,
           username: values.username,
         });
         message.success('用户已更新');
@@ -42,6 +43,7 @@ const [Modal, modalApi] = useVbenModal<AccountRecord | null>({
         await createAccountApi({
           account: values.account,
           password: values.password,
+          remark: values.remark,
           username: values.username,
         });
         message.success('账号已创建');
@@ -60,7 +62,11 @@ const [Modal, modalApi] = useVbenModal<AccountRecord | null>({
     });
     formApi.reset();
     if (editing.value) {
-      formApi.setValues({ password: '', username: editing.value.username });
+      formApi.setValues({
+        password: '',
+        remark: editing.value.remark ?? '',
+        username: editing.value.username,
+      });
     }
   },
 });

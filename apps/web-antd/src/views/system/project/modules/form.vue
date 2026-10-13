@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { ProjectItem } from '#/api/types';
+import type { ProjectManageItem, ProjectWrite } from '#/api/types';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -19,13 +19,13 @@ const [Form, formApi] = useVbenForm({
   showDefaultActions: false,
 });
 
-const [Modal, modalApi] = useVbenModal<ProjectItem>({
+const [Modal, modalApi] = useVbenModal<ProjectManageItem>({
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (!valid) return;
     const project = modalApi.getData();
     if (!project) return;
-    const values = await formApi.getValues<{ appKey: string; name: string }>();
+    const values = await formApi.getValues<ProjectWrite>();
     modalApi.lock();
     try {
       await updateProjectApi(project.projectId, values);
@@ -40,7 +40,11 @@ const [Modal, modalApi] = useVbenModal<ProjectItem>({
     if (!isOpen) return;
     const project = modalApi.getData();
     if (!project) return;
-    formApi.setValues({ appKey: project.appKey ?? '', name: project.name });
+    formApi.setValues({
+      appKey: project.appKey ?? '',
+      description: project.description ?? '',
+      name: project.name,
+    });
   },
 });
 </script>

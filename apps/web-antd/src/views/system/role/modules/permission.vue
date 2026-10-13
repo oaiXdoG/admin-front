@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { RoleKind } from '#/api';
 import type { MenuRecord, RoleRecord } from '#/api/types';
 
 import { computed, ref } from 'vue';
@@ -7,7 +8,13 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { message, Spin, Tree } from 'ant-design-vue';
 
-import { getRoleMenusApi, updateRoleMenusApi } from '#/api';
+import { useRoleApi } from '#/api';
+import { useProjectStore } from '#/store';
+
+interface ModalData {
+  kind: RoleKind;
+  role: RoleRecord;
+}
 
 interface TreeNode {
   children: TreeNode[];
@@ -16,7 +23,9 @@ interface TreeNode {
   title: string;
 }
 
+const projectStore = useProjectStore();
 const role = ref<null | RoleRecord>(null);
+let roleApi = useRoleApi('platform');
 const menus = ref<MenuRecord[]>([]);
 const checkedKeys = ref<number[]>([]);
 /** 打开时已分配的菜单，用来判断停用菜单是否允许取消 */
@@ -78,12 +87,15 @@ function onCheck(keys: unknown) {
   checkedKeys.value = list.map(Number);
 }
 
-const [Modal, modalApi] = useVbenModal<RoleRecord>({
+const [Modal, modalApi] = useVbenModal<ModalData>({
   async onConfirm() {
     if (!role.value) return;
     modalApi.lock();
     try {
-      await updateRoleMenusApi(role.value.id, withAncestors(checkedKeys.value));
+      await roleApi.updateMenus(
+        role.value.id,
+        withAncestors(checkedKeys.value),
+      );
       message.success('角色权限已保存');
       modalApi.close();
     } finally {
@@ -92,14 +104,16 @@ const [Modal, modalApi] = useVbenModal<RoleRecord>({
   },
   async onOpenChange(isOpen) {
     if (!isOpen) return;
-    const current = modalApi.getData();
-    if (!current) return;
+    const modalData = modalApi.getData();
+    if (!modalData) return;
+    const current = modalData.role;
+    roleApi = useRoleApi(modalData.kind, () => projectStore.currentProjectId);
     role.value = current;
     menus.value = [];
     checkedKeys.value = [];
     loading.value = true;
     try {
-      const data = await getRoleMenusApi(current.id);
+      const data = await roleApi.menus(current.id);
       menus.value = data.menus;
       assignedIds.value = new Set(data.menuIds);
       checkedKeys.value = leafKeys(data.menuIds);

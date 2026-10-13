@@ -26,6 +26,12 @@ export const registeredRoutes: RegisteredRoute[] = [
     component: '/system/role/index',
   },
   {
+    name: 'manage_role_template',
+    path: '/manage/role-template',
+    title: '角色模板',
+    component: '/system/role-template/index',
+  },
+  {
     name: 'manage_menu',
     path: '/manage/menu',
     title: '菜单管理',
@@ -36,6 +42,19 @@ export const registeredRoutes: RegisteredRoute[] = [
     path: '/manage/project',
     title: '项目管理',
     component: '/system/project/index',
+  },
+  { name: 'project', path: '/project', title: '项目设置', directory: true },
+  {
+    name: 'project_member',
+    path: '/project/member',
+    title: '成员管理',
+    component: '/project/member/index',
+  },
+  {
+    name: 'project_role',
+    path: '/project/role',
+    title: '角色管理',
+    component: '/project/role/index',
   },
   { name: 'data', path: '/data', title: '数据中心', directory: true },
   {

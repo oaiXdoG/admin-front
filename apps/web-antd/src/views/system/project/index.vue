@@ -1,14 +1,21 @@
 <script lang="ts" setup>
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { ProjectItem } from '#/api/types';
+import type { ProjectManageItem } from '#/api/types';
+
+import { watch } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
-import { Button, message, Modal } from 'ant-design-vue';
+import { Button, message, Modal, Tag } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import { closeProjectApi } from '#/api';
+import {
+  closeProjectApi,
+  getProjectManageListApi,
+  reopenProjectApi,
+} from '#/api';
+import { STATUS_ENABLED } from '#/api/types';
 import { useProjectStore } from '#/store';
 
 import { useColumns, useGridFormSchema } from './data';
@@ -31,11 +38,19 @@ const [Grid, gridApi] = useVbenVxeGrid({
     keepSource: true,
     proxyConfig: {
       ajax: {
-        query: async ({ page }, formValues: { name?: string }) => {
-          await projectStore.load();
-          const keyword = formValues.name?.trim() ?? '';
-          const rows = projectStore.projects.filter(
-            (item) => !keyword || item.name.includes(keyword),
+        query: async (
+          { page },
+          formValues: { keyword?: string; status?: number },
+        ) => {
+          const keyword = formValues.keyword?.trim().toLowerCase() ?? '';
+          const list = await getProjectManageListApi();
+          const rows = list.filter(
+            (item) =>
+              (!keyword ||
+                `${item.name} ${item.appKey}`
+                  .toLowerCase()
+                  .includes(keyword)) &&
+              (!formValues.status || item.status === formValues.status),
           );
           const start = (page.currentPage - 1) * page.pageSize;
           return {
@@ -46,27 +61,28 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
     },
     rowConfig: { keyField: 'projectId' },
-    toolbarConfig: {
-      custom: true,
-      refresh: true,
-      search: true,
-      zoom: true,
-    },
-  } as VxeTableGridOptions<ProjectItem>,
+    toolbarConfig: { custom: true, refresh: true, search: true, zoom: true },
+  } as VxeTableGridOptions<ProjectManageItem>,
 });
+
+// 右上角新建项目后刷新列表
+watch(
+  () => projectStore.projects.length,
+  () => onRefresh(),
+);
 
 function onRefresh() {
   gridApi.query();
 }
 
-function onEdit(row: ProjectItem) {
+function onEdit(row: ProjectManageItem) {
   formModalApi.setData(row).open();
 }
 
-function onClose(row: ProjectItem) {
+function onClose(row: ProjectManageItem) {
   Modal.confirm({
     cancelText: '取消',
-    content: `关闭「${row.name}」后，将不再出现在项目列表中，项目数据仍然保留。`,
+    content: `关闭「${row.name}」后，它不再出现在项目切换列表中，成员和角色保留，可以随时重新启用。`,
     okButtonProps: { danger: true },
     okText: '关闭项目',
     title: '关闭项目',
@@ -78,6 +94,13 @@ function onClose(row: ProjectItem) {
       onRefresh();
     },
   });
+}
+
+async function onReopen(row: ProjectManageItem) {
+  await reopenProjectApi(row.projectId);
+  message.success('项目已重新启用');
+  await projectStore.load();
+  onRefresh();
 }
 </script>
 
@@ -95,10 +118,24 @@ function onClose(row: ProjectItem) {
           新增
         </Button>
       </template>
+      <template #status="{ row }">
+        <Tag :color="row.status === STATUS_ENABLED ? 'success' : 'default'">
+          {{ row.status === STATUS_ENABLED ? '正常' : '已关闭' }}
+        </Tag>
+      </template>
       <template #action="{ row }">
         <Button size="small" type="link" @click="onEdit(row)">编辑</Button>
-        <Button danger size="small" type="link" @click="onClose(row)">
+        <Button
+          v-if="row.status === STATUS_ENABLED"
+          danger
+          size="small"
+          type="link"
+          @click="onClose(row)"
+        >
           关闭
+        </Button>
+        <Button v-else size="small" type="link" @click="onReopen(row)">
+          重新启用
         </Button>
       </template>
     </Grid>

@@ -1,5 +1,8 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridColumns } from '#/adapter/vxe-table';
+import type { RoleKind } from '#/api';
+
+import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
 
@@ -25,12 +28,16 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'Input',
       componentProps: { maxlength: 64 },
       fieldName: 'code',
+      help: '大写字母开头，只能包含大写字母、数字和下划线，例如 OPERATOR',
       label: '角色编码',
       rules: z
         .string()
         .trim()
         .min(1, { message: '请输入角色编码' })
-        .max(64, { message: '角色编码最长 64 位' }),
+        .max(64, { message: '角色编码最长 64 位' })
+        .regex(/^[A-Z][A-Z0-9_]*$/, {
+          message: '只能使用大写字母、数字和下划线，并以字母开头',
+        }),
     },
     {
       component: 'Textarea',
@@ -76,24 +83,36 @@ export function useGridFormSchema(): VbenFormSchema[] {
   ];
 }
 
-export function useColumns(): VxeTableGridColumns {
+export function useColumns(kind: RoleKind): VxeTableGridColumns {
   return [
     { type: 'checkbox', width: 60 },
     { field: 'id', title: '角色 ID', width: 100 },
     { field: 'name', minWidth: 140, title: '角色名称' },
     { align: 'left', field: 'code', minWidth: 140, title: '角色编码' },
     { align: 'left', field: 'description', minWidth: 180, title: '角色描述' },
-    {
-      field: 'globalRole',
-      slots: { default: 'globalRole' },
-      title: '类型',
-      width: 100,
-    },
+    ...(kind === 'project'
+      ? [
+          {
+            field: 'templateName',
+            formatter: ({ cellValue }: { cellValue?: string }) =>
+              cellValue || '—',
+            title: '来源模板',
+            width: 120,
+          },
+        ]
+      : []),
     {
       field: 'status',
       slots: { default: 'status' },
-      title: '角色状态',
+      title: '状态',
       width: 110,
+    },
+    {
+      field: 'createdAt',
+      formatter: ({ cellValue }) =>
+        cellValue ? dayjs(cellValue).format('YYYY-MM-DD HH:mm') : '—',
+      title: '创建时间',
+      width: 160,
     },
     {
       field: 'operation',

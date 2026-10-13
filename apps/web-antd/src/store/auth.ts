@@ -11,7 +11,7 @@ import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 
 import { defineStore } from 'pinia';
 
-import { loginApi } from '#/api';
+import { loginApi, logoutApi } from '#/api';
 
 /** 后端没有用户信息接口，登录返回的账号信息保存在这里，刷新页面后从这里恢复 */
 const SESSION_KEY = 'admin-front-session';
@@ -77,6 +77,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(redirect: boolean = true) {
+    // 先删除服务器会话；令牌已失效时接口同样成功，网络失败也不影响本地退出
+    if (accessStore.accessToken) {
+      await logoutApi().catch(() => undefined);
+    }
     localStorage.removeItem(SESSION_KEY);
     resetAllStores();
     const { resetRoutes } = await import('#/router');

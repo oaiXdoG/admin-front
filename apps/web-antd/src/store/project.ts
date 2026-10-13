@@ -48,7 +48,7 @@ export const useProjectStore = defineStore('project', () => {
   async function load() {
     const data = await getProjectListApi();
     projects.value = data.projects;
-    currentProjectId.value = data.currentProjectId;
+    currentProjectId.value = data.currentProjectId ?? null;
     loaded.value = true;
   }
 
@@ -98,7 +98,12 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  async function create(values: { appKey: string; name: string }) {
+  async function create(values: {
+    appKey: string;
+    description?: string;
+    name: string;
+    templateIds?: number[];
+  }) {
     const created = await createProjectApi(values);
     message.success('项目已创建');
     createOpen.value = false;

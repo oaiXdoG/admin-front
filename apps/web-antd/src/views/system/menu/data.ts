@@ -3,9 +3,15 @@ import type { VxeTableGridColumns } from '#/adapter/vxe-table';
 import type { MenuRecord } from '#/api/types';
 
 import { z } from '#/adapter/form';
+import { SCOPE_PLATFORM, SCOPE_PROJECT } from '#/api/types';
 import { registeredRoutes } from '#/router/registry';
 
 export const MENU_TYPE_DIRECTORY = 1;
+
+export const SCOPE_NAMES: Record<number, string> = {
+  [SCOPE_PLATFORM]: '平台',
+  [SCOPE_PROJECT]: '项目',
+};
 
 export const MENU_TYPE_MENU = 2;
 
@@ -76,6 +82,25 @@ export function useFormSchema(
       defaultValue: 0,
       fieldName: 'parentId',
       label: '上级目录',
+      rules: 'selectRequired',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        options: [
+          { label: '平台（系统管理类）', value: SCOPE_PLATFORM },
+          { label: '项目（项目内功能）', value: SCOPE_PROJECT },
+        ],
+      },
+      defaultValue: SCOPE_PROJECT,
+      // 只有顶级目录选择范围，子项跟随上级
+      dependencies: {
+        resolve: ({ values }) => ({ show: !values.parentId }),
+        triggerFields: ['parentId'],
+      },
+      fieldName: 'scope',
+      help: '平台菜单只能分配给平台角色；项目菜单只能分配给角色模板和项目角色。子项自动跟随上级目录',
+      label: '范围',
       rules: 'selectRequired',
     },
     {
@@ -222,6 +247,12 @@ export function useColumns(): VxeTableGridColumns {
       treeNode: true,
     },
     { field: 'id', title: '菜单 ID', width: 100 },
+    {
+      field: 'scope',
+      slots: { default: 'scope' },
+      title: '范围',
+      width: 80,
+    },
     {
       field: 'menuType',
       formatter: ({ cellValue }) =>

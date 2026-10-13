@@ -13,8 +13,9 @@ import {
 const projectStore = useProjectStore();
 
 const [Form, formApi] = useVbenForm({
-  schema: useProjectFormSchema(() =>
-    formApi.setFieldValue('appKey', generateAppKey()),
+  schema: useProjectFormSchema(
+    () => formApi.setFieldValue('appKey', generateAppKey()),
+    true,
   ),
   showDefaultActions: false,
 });
@@ -23,7 +24,12 @@ const [Modal, modalApi] = useVbenModal({
   async onConfirm() {
     const { valid } = await formApi.validate();
     if (!valid) return;
-    const values = await formApi.getValues<{ appKey: string; name: string }>();
+    const values = await formApi.getValues<{
+      appKey: string;
+      description: string;
+      name: string;
+      templateIds: number[];
+    }>();
     modalApi.lock();
     try {
       await projectStore.create(values);

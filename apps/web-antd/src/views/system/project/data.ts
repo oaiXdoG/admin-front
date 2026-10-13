@@ -7,6 +7,8 @@ import { Button } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
+import { getProjectTemplateOptionsApi } from '#/api';
+import { STATUS_DISABLED, STATUS_ENABLED } from '#/api/types';
 
 const APP_KEY_CHARS =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -19,8 +21,12 @@ export function generateAppKey() {
 
 /**
  * @param onGenerate 点击「随机生成」时调用，由使用方把生成的值写回表单
+ * @param withTemplates 新建项目时显示「初始角色模板」
  */
-export function useProjectFormSchema(onGenerate: () => void): VbenFormSchema[] {
+export function useProjectFormSchema(
+  onGenerate: () => void,
+  withTemplates = false,
+): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -52,6 +58,33 @@ export function useProjectFormSchema(onGenerate: () => void): VbenFormSchema[] {
         .min(1, { message: '请输入项目名称' })
         .max(64, { message: '项目名称最长 64 位' }),
     },
+    {
+      component: 'Textarea',
+      componentProps: { maxlength: 128, placeholder: '可空', rows: 2 },
+      defaultValue: '',
+      fieldName: 'description',
+      label: '项目描述',
+      rules: z.string().max(128, { message: '项目描述最长 128 位' }).optional(),
+    },
+    ...(withTemplates
+      ? [
+          {
+            component: 'ApiSelect',
+            componentProps: {
+              allowClear: true,
+              api: getProjectTemplateOptionsApi,
+              labelField: 'name',
+              mode: 'multiple',
+              placeholder: '选择后复制为本项目的角色，可不选',
+              valueField: 'id',
+            },
+            defaultValue: [],
+            fieldName: 'templateIds',
+            help: '会自动生成「项目管理员」角色；勾选的模板连同菜单权限一起复制到新项目，之后可在项目里单独调整',
+            label: '初始角色模板',
+          } as VbenFormSchema,
+        ]
+      : []),
   ];
 }
 
@@ -59,26 +92,47 @@ export function useGridFormSchema(): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      componentProps: { allowClear: true, placeholder: '项目名称' },
-      fieldName: 'name',
-      label: '项目名称',
+      componentProps: { allowClear: true, placeholder: '项目名称或 App Key' },
+      fieldName: 'keyword',
+      label: '项目',
+    },
+    {
+      component: 'Select',
+      componentProps: {
+        allowClear: true,
+        options: [
+          { label: '正常', value: STATUS_ENABLED },
+          { label: '已关闭', value: STATUS_DISABLED },
+        ],
+        placeholder: '全部',
+      },
+      fieldName: 'status',
+      label: '状态',
     },
   ];
 }
 
+const formatTime = ({ cellValue }: { cellValue?: number }) =>
+  cellValue ? dayjs(cellValue).format('YYYY-MM-DD HH:mm:ss') : '—';
+
 export function useColumns(): VxeTableGridColumns {
   return [
-    { field: 'projectId', title: '项目 ID', width: 120 },
-    { field: 'appKey', minWidth: 160, title: 'App Key' },
-    { field: 'name', minWidth: 160, title: '项目名称' },
+    { field: 'projectId', title: '项目 ID', width: 90 },
+    { align: 'left', field: 'name', minWidth: 140, title: '项目名称' },
+    { align: 'left', field: 'appKey', minWidth: 180, title: 'App Key' },
+    { align: 'left', field: 'description', minWidth: 160, title: '描述' },
+    { field: 'memberCount', title: '成员数', width: 90 },
+    {
+      field: 'status',
+      slots: { default: 'status' },
+      title: '状态',
+      width: 90,
+    },
     {
       field: 'createdAt',
-      formatter: ({ cellValue }) =>
-        cellValue === null || cellValue === undefined
-          ? '—'
-          : dayjs(cellValue).format('YYYY-MM-DD HH:mm:ss'),
+      formatter: formatTime,
       title: '创建时间',
-      width: 200,
+      width: 170,
     },
     {
       field: 'operation',

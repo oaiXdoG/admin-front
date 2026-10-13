@@ -13,8 +13,14 @@ import { Button, message, Modal, Tag, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { getMenuListApi, removeMenuApi } from '#/api';
+import { SCOPE_PLATFORM } from '#/api/types';
 
-import { MENU_TYPE_DIRECTORY, useColumns, useGridFormSchema } from './data';
+import {
+  MENU_TYPE_DIRECTORY,
+  SCOPE_NAMES,
+  useColumns,
+  useGridFormSchema,
+} from './data';
 import Form from './modules/form.vue';
 
 /** 完整菜单列表，供编辑弹窗选择上级目录和计算默认 ID */
@@ -141,6 +147,11 @@ function onRemove(row: MenuRecord) {
           />
           {{ row.name }}
         </span>
+      </template>
+      <template #scope="{ row }">
+        <Tag :color="row.scope === SCOPE_PLATFORM ? 'purple' : 'blue'">
+          {{ SCOPE_NAMES[row.scope] ?? '—' }}
+        </Tag>
       </template>
       <template #status="{ row }">
         <Tag :color="row.status === 1 ? 'success' : 'warning'">
