@@ -29,11 +29,14 @@ const routes: RouteRecordRaw[] = [
   fallbackNotFoundRoute,
 ];
 
-/** 基本路由列表，这些路由不需要进入权限拦截（空白首页需要登录） */
+/** 静态路由里需要登录的页面：空白首页和个人设置 */
+const LOGIN_REQUIRED_STATIC_ROUTES = new Set(['Profile', 'Welcome']);
+
+/** 基本路由列表，这些路由不需要进入权限拦截 */
 const coreRouteNames = traverseTreeValues(
   coreRoutes,
   (route) => route.name,
-).filter((name) => name !== 'Welcome');
+).filter((name) => !LOGIN_REQUIRED_STATIC_ROUTES.has(name as string));
 
 /** 有权限校验的路由列表，包含动态路由和静态路由 */
 const accessRoutes = [...dynamicRoutes, ...staticRoutes];

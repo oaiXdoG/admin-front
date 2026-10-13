@@ -46,6 +46,10 @@ async function bootstrap(namespace: string) {
   // 配置 pinia-tore
   await initStores(app, { namespace });
 
+  // 读取系统设置（系统名称、Logo 等），登录页也要用
+  const { useSystemSettingStore } = await import('./store/setting');
+  await useSystemSettingStore().load();
+
   // 安装权限指令
   registerAccessDirective(app);
 

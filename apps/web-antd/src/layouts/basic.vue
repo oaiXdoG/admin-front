@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { BasicLayout, UserDropdown } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
@@ -10,6 +11,7 @@ import { useAuthStore, useProjectStore } from '#/store';
 import ProjectCreateModal from './widgets/project-create-modal.vue';
 import ProjectSwitcher from './widgets/project-switcher.vue';
 
+const router = useRouter();
 const userStore = useUserStore();
 const authStore = useAuthStore();
 const projectStore = useProjectStore();
@@ -22,6 +24,14 @@ const avatar = computed(() => {
 const description = computed(
   () => projectStore.currentProject?.roleName || userStore.userInfo?.username,
 );
+
+const menus = [
+  {
+    handler: () => router.push({ name: 'Profile' }),
+    icon: 'lucide:user-cog',
+    text: '个人设置',
+  },
+];
 
 async function handleLogout() {
   await authStore.logout(false);
@@ -42,7 +52,7 @@ async function handleLogout() {
       <UserDropdown
         :avatar
         :description
-        :menus="[]"
+        :menus
         :text="userStore.userInfo?.realName"
         @clear-preferences-and-logout="handleLogout"
         @logout="handleLogout"

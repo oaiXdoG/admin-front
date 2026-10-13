@@ -147,3 +147,27 @@ export interface RoleMenuResult {
   menus: MenuRecord[];
   menuIds: number[];
 }
+
+export interface Profile {
+  id: number;
+  account: string;
+  username: string;
+  /** 图片 data URL，未设置为空字符串 */
+  avatar: string;
+  remark?: string;
+  lastLoginAt?: number;
+  createdAt: number;
+  superAdmin: boolean;
+  platformRoles: string[];
+  projects: { projectId: number; projectName: string; roleName: string }[];
+}
+
+/** 全局品牌信息；copyright 是版权方名称，页脚显示为「Copyright © 当年 版权方」 */
+export interface SystemSetting {
+  appName: string;
+  logo: string;
+  favicon: string;
+  loginTitle: string;
+  loginDescription: string;
+  copyright: string;
+}

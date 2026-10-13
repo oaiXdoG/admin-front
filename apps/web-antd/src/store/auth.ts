@@ -1,6 +1,6 @@
 import type { Recordable, UserInfo } from '@vben/types';
 
-import type { LoginResult } from '#/api/types';
+import type { Profile } from '#/api/types';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -11,31 +11,19 @@ import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 
 import { defineStore } from 'pinia';
 
-import { loginApi, logoutApi } from '#/api';
+import { getProfileApi, loginApi, logoutApi } from '#/api';
 
-/** 后端没有用户信息接口，登录返回的账号信息保存在这里，刷新页面后从这里恢复 */
-const SESSION_KEY = 'admin-front-session';
-
-function toUserInfo(session: LoginResult): UserInfo {
+function toUserInfo(profile: Profile, token: string): UserInfo {
   return {
-    avatar: '',
-    desc: session.account,
+    avatar: profile.avatar,
+    desc: profile.account,
     homePath: '',
-    realName: session.username,
+    realName: profile.username,
     roles: [],
-    token: session.token,
-    userId: String(session.id),
-    username: session.account,
+    token,
+    userId: String(profile.id),
+    username: profile.account,
   };
-}
-
-function readSession(): LoginResult | null {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null');
-    return parsed?.token ? (parsed as LoginResult) : null;
-  } catch {
-    return null;
-  }
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -57,9 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
       });
       if (!session?.token) return;
 
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       accessStore.setAccessToken(session.token);
-      userStore.setUserInfo(toUserInfo(session));
+      await fetchUserInfo();
 
       const redirect = router.currentRoute.value.query?.redirect as
         | string
@@ -81,7 +68,6 @@ export const useAuthStore = defineStore('auth', () => {
     if (accessStore.accessToken) {
       await logoutApi().catch(() => undefined);
     }
-    localStorage.removeItem(SESSION_KEY);
     resetAllStores();
     const { resetRoutes } = await import('#/router');
     resetRoutes();
@@ -99,17 +85,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 从本地恢复登录时保存的账号信息；本地没有记录说明登录态不完整，重新登录
+   * 从服务器读取当前账号的个人信息；令牌失效时请求拦截器会退出登录
    */
   async function fetchUserInfo() {
-    const session = readSession();
-    if (!session || session.token !== accessStore.accessToken) {
-      await logout();
-      throw new Error('登录信息已失效，请重新登录');
-    }
-    const userInfo = toUserInfo(session);
+    const userInfo = toUserInfo(
+      await getProfileApi(),
+      accessStore.accessToken ?? '',
+    );
     userStore.setUserInfo(userInfo);
     return userInfo;
+  }
+
+  /** 个人设置保存后同步头像和昵称 */
+  function applyProfile(profile: Profile) {
+    userStore.setUserInfo(toUserInfo(profile, accessStore.accessToken ?? ''));
   }
 
   function $reset() {
@@ -118,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     $reset,
+    applyProfile,
     authLogin,
     fetchUserInfo,
     loginLoading,

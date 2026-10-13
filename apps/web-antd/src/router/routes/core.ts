@@ -51,6 +51,16 @@ const coreRoutes: RouteRecordRaw[] = [
         name: 'Welcome',
         path: WELCOME_PATH,
       },
+      {
+        component: () => import('#/views/_core/profile/index.vue'),
+        meta: {
+          hideInMenu: true,
+          icon: 'lucide:user-cog',
+          title: '个人设置',
+        },
+        name: 'Profile',
+        path: '/profile',
+      },
     ],
   },
   {

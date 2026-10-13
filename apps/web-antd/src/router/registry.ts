@@ -38,6 +38,12 @@ export const registeredRoutes: RegisteredRoute[] = [
     component: '/system/menu/index',
   },
   {
+    name: 'manage_setting',
+    path: '/manage/setting',
+    title: '系统设置',
+    component: '/system/setting/index',
+  },
+  {
     name: 'manage_project',
     path: '/manage/project',
     title: '项目管理',
