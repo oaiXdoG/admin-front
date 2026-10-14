@@ -12,6 +12,11 @@ export default defineConfig(async ({ mode }) => {
   return {
     application: {},
     vite: {
+      // monorepo 里 vue-router 因依赖解析不同装了两份，生产打包时布局包会用到另一份，
+      // useRouter() 取不到应用注册的路由导致白屏；强制只用一份
+      resolve: {
+        dedupe: ['vue', 'vue-router', 'pinia'],
+      },
       server: {
         proxy: {
           '/api': {
