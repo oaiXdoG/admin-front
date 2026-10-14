@@ -8,6 +8,7 @@ import { ref } from 'vue';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  AutoComplete,
   Button,
   Empty,
   FormItem,
@@ -16,7 +17,13 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { isJsonType, sourceTypes, useRowKey, valueTypes } from '../types';
+import {
+  columnSources,
+  isJsonType,
+  SOURCE_PATTERN,
+  useRowKey,
+  valueTypes,
+} from '../types';
 import JsonConfiguration from './json-configuration.vue';
 
 const fields = defineModel<FieldMapping[]>({ required: true });
@@ -26,24 +33,66 @@ const rowKey = useRowKey();
 const expanded = ref<number[]>([]);
 
 const sourceRules: Rule[] = [
-  { message: '请输入源字段', required: true, whitespace: true },
+  { message: '请输入取值来源', required: true, whitespace: true },
+  {
+    message: '自带列或 data.字段路径，例如 data.amount',
+    pattern: SOURCE_PATTERN,
+  },
 ];
 const keyRules: Rule[] = [
-  { message: '请输入返回字段', required: true, whitespace: true },
+  { message: '请输入结果字段', required: true, whitespace: true },
+  {
+    message: '字母、数字、下划线，以字母或下划线开头',
+    pattern: /^[A-Z_]\w{0,63}$/i,
+  },
+  {
+    validator: (_rule: Rule, value: string) =>
+      fields.value.filter((item) => item.key === value?.trim()).length > 1
+        ? Promise.reject(new Error('结果字段不能重复'))
+        : Promise.resolve(),
+  },
+];
+const sourceOptions = [
+  ...columnSources.map((item) => ({
+    label: `${item.value}（${item.label}）`,
+    value: item.value,
+  })),
+  { label: 'data.字段名（业务字段）', value: 'data.' },
 ];
 const labelRules: Rule[] = [
-  { message: '请输入字段描述', required: true, whitespace: true },
+  { message: '请输入列标题', required: true, whitespace: true },
 ];
 const requiredRules: Rule[] = [{ required: true }];
 
 function add() {
-  fields.value.push({
-    key: '',
-    label: '',
-    source: '',
-    sourceType: 'txt',
-    type: 'string',
-  });
+  fields.value.push({ key: '', label: '', source: '', type: 'string' });
+}
+
+/** 选择自带列时带出类型、结果字段和描述；业务字段按路径最后一段填结果字段 */
+function onSourceChange(field: FieldMapping) {
+  const source = field.source?.trim() ?? '';
+  const column = columnSources.find((item) => item.value === source);
+  if (column) {
+    field.type = column.type;
+    field.key ||= column.value;
+    field.label ||= column.label;
+    return;
+  }
+  const last = source.startsWith('data.') ? source.split('.').pop() : '';
+  if (last && /^[A-Z_]\w*$/i.test(last) && !field.key) field.key = last;
+}
+
+/** 自带列的类型是固定的：time 只能是时间，其余只能是文本或数字 */
+function typeOptions(field: FieldMapping) {
+  if (field.source === 'time') {
+    return valueTypes.filter((item) => item.value === 'time');
+  }
+  if (columnSources.some((item) => item.value === field.source)) {
+    return valueTypes.filter(
+      (item) => item.value === 'string' || item.value === 'number',
+    );
+  }
+  return valueTypes;
 }
 
 function remove(index: number) {
@@ -73,37 +122,36 @@ function toggle(field: FieldMapping) {
       <FormItem
         :name="['fields', index, 'source']"
         :rules="sourceRules"
-        label="源字段"
+        label="取值来源"
       >
-        <Input v-model:value="field.source" placeholder="源字段" />
-      </FormItem>
-      <FormItem
-        :name="['fields', index, 'sourceType']"
-        :rules="requiredRules"
-        label="源字段类型"
-      >
-        <Select v-model:value="field.sourceType" :options="sourceTypes" />
-      </FormItem>
-      <FormItem
-        :name="['fields', index, 'key']"
-        :rules="keyRules"
-        label="返回字段"
-      >
-        <Input v-model:value="field.key" placeholder="返回字段" />
+        <AutoComplete
+          v-model:value="field.source"
+          :options="sourceOptions"
+          placeholder="actor 或 data.amount"
+          @blur="onSourceChange(field)"
+          @select="onSourceChange(field)"
+        />
       </FormItem>
       <FormItem
         :name="['fields', index, 'type']"
         :rules="requiredRules"
-        label="返回类型"
+        label="类型"
       >
-        <Select v-model:value="field.type" :options="valueTypes" />
+        <Select v-model:value="field.type" :options="typeOptions(field)" />
+      </FormItem>
+      <FormItem
+        :name="['fields', index, 'key']"
+        :rules="keyRules"
+        label="结果字段"
+      >
+        <Input v-model:value="field.key" placeholder="结果字段" />
       </FormItem>
       <FormItem
         :name="['fields', index, 'label']"
         :rules="labelRules"
-        label="字段描述"
+        label="列标题"
       >
-        <Input v-model:value="field.label" placeholder="字段描述" />
+        <Input v-model:value="field.label" placeholder="列标题" />
       </FormItem>
       <Tooltip title="移除字段">
         <Button
@@ -162,8 +210,8 @@ function toggle(field: FieldMapping) {
 .dc-mapping-row {
   display: grid;
   grid-template-columns:
-    minmax(120px, 1fr) minmax(100px, 0.8fr) minmax(120px, 1fr)
-    minmax(120px, 0.9fr) minmax(120px, 1.1fr) 32px;
+    minmax(160px, 1.3fr) minmax(110px, 0.8fr) minmax(120px, 1fr)
+    minmax(120px, 1.1fr) 32px;
   gap: 12px;
 }
 
@@ -186,10 +234,6 @@ function toggle(field: FieldMapping) {
   .dc-mapping-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 0 12px;
-  }
-
-  .dc-mapping-row :deep(.ant-form-item:nth-of-type(5)) {
-    grid-column: 1;
   }
 
   .dc-remove-field {

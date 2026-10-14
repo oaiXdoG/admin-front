@@ -37,8 +37,11 @@ export const useProjectStore = defineStore('project', () => {
   const currentProject = computed(() =>
     projects.value.find((item) => item.projectId === currentProjectId.value),
   );
-  const canManage = computed(() =>
-    hasRouteName(accessStore.accessRoutes, 'manage_project'),
+  /** 能创建项目：有项目管理页面和新建按钮 */
+  const canManage = computed(
+    () =>
+      hasRouteName(accessStore.accessRoutes, 'manage_project') &&
+      accessStore.accessCodes.includes('manage_project:create'),
   );
   /** 有项目管理权限但还没有任何项目时，必须先创建项目 */
   const mustCreate = computed(

@@ -1,29 +1,11 @@
 <script lang="ts" setup>
-import type { Template } from './types';
-
-import { computed } from 'vue';
-
 import { Page } from '@vben/common-ui';
 
 import { useProjectStore } from '#/store';
 
 import TemplateManager from './components/template-manager.vue';
-import { useDataCenterStore } from './store';
 
 const projectStore = useProjectStore();
-const dataCenterStore = useDataCenterStore();
-
-const templates = computed(() =>
-  dataCenterStore.listByProject(projectStore.currentProjectId),
-);
-
-function onSave(template: Template) {
-  dataCenterStore.save(template);
-}
-
-function onRemove(id: number) {
-  dataCenterStore.remove(id);
-}
 </script>
 
 <template>
@@ -35,9 +17,6 @@ function onRemove(id: number) {
       v-else
       :key="projectStore.currentProjectId"
       :project-id="projectStore.currentProjectId"
-      :templates="templates"
-      @remove="onRemove"
-      @save="onSave"
     />
   </Page>
 </template>

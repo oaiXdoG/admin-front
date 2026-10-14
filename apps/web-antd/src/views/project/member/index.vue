@@ -2,6 +2,7 @@
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { ProjectMember } from '#/api/types';
 
+import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
@@ -18,6 +19,7 @@ import Form from './modules/form.vue';
 
 const projectStore = useProjectStore();
 const userStore = useUserStore();
+const { hasAccessByCodes } = useAccess();
 
 const [FormModal, formModalApi] = useVbenModal({ connectedComponent: Form });
 
@@ -123,7 +125,11 @@ function onRemove(row: ProjectMember) {
       :table-title="`成员列表 · ${projectStore.currentProject?.name ?? ''}`"
     >
       <template #toolbar-tools>
-        <Button type="primary" @click="formModalApi.setData(null).open()">
+        <Button
+          v-if="hasAccessByCodes(['project_member:add'])"
+          type="primary"
+          @click="formModalApi.setData(null).open()"
+        >
           <Plus class="size-5" />
           添加成员
         </Button>
@@ -138,6 +144,7 @@ function onRemove(row: ProjectMember) {
       </template>
       <template #action="{ row }">
         <Button
+          v-if="hasAccessByCodes(['project_member:update'])"
           size="small"
           type="link"
           @click="formModalApi.setData(row).open()"
@@ -145,6 +152,7 @@ function onRemove(row: ProjectMember) {
           修改角色
         </Button>
         <Button
+          v-if="hasAccessByCodes(['project_member:remove'])"
           :disabled="isSelf(row)"
           danger
           size="small"

@@ -7,8 +7,9 @@ import type {
   VxeGridPropTypes,
   VxeTableGridOptions,
 } from '#/adapter/vxe-table';
+import type { DataQueryCondition } from '#/api/types';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -18,14 +19,20 @@ import {
   Empty,
   Input,
   InputNumber,
+  message,
   RadioGroup,
   RangePicker,
   Select,
   Space,
+  Tag,
   Tooltip,
 } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { getQueryTemplatesApi, queryDataApi } from '#/api';
+
+import { flattenRow, parseTemplate } from '../types';
 
 interface Condition {
   field?: string;
@@ -41,7 +48,7 @@ interface Condition {
 
 const props = defineProps<{
   category: Category;
-  templates: Template[];
+  projectId: number;
 }>();
 
 const compare = [
@@ -58,23 +65,55 @@ const textCompare = [
   { label: '不等于', value: 'ne' },
   { label: '包含', value: 'contains' },
 ];
+const booleanCompare = [
+  { label: '等于', value: 'eq' },
+  { label: '不等于', value: 'ne' },
+];
+const booleanOptions = [
+  { label: '是', value: 'true' },
+  { label: '否', value: 'false' },
+];
 const relations = [
   { label: 'AND', value: 'and' },
   { label: 'OR', value: 'or' },
 ];
+/** 用 getter 让快捷选项在点击时才取当前时间 */
+function preset(label: string, start: () => Dayjs) {
+  return {
+    label,
+    get value() {
+      return [start(), dayjs()];
+    },
+  };
+}
+const timePresets = [
+  preset('最近 1 小时', () => dayjs().subtract(1, 'hour')),
+  preset('今天', () => dayjs().startOf('day')),
+  preset('最近 7 天', () => dayjs().subtract(7, 'day')),
+  preset('最近 30 天', () => dayjs().subtract(30, 'day')),
+];
 
+const templates = ref<Template[]>([]);
+/** 当前连接的日志库，提示查询的是哪个环境 */
+const database = ref('');
 const templateId = ref<number>();
 const conditions = ref<Condition[]>([]);
 const relation = ref('and');
+const timeRange = ref<[Dayjs, Dayjs]>([dayjs().subtract(1, 'day'), dayjs()]);
+/** 点击查询时固定下来的参数，翻页时沿用 */
+const submitted = ref<{
+  conditions: DataQueryCondition[];
+  endTime: number;
+  relation: string;
+  startTime: number;
+  templateId: number;
+}>();
 
-const available = computed(() =>
-  props.templates.filter((item) => item.category === props.category),
-);
 const template = computed(() =>
-  available.value.find((item) => item.id === templateId.value),
+  templates.value.find((item) => item.id === templateId.value),
 );
 const moduleOptions = computed(() =>
-  available.value.map((item) => ({ label: item.name, value: item.id })),
+  templates.value.map((item) => ({ label: item.name, value: item.id })),
 );
 const queryFields = computed(() => template.value?.fields ?? []);
 const fieldOptions = computed(() =>
@@ -97,13 +136,32 @@ const columns = computed<VxeGridPropTypes.Columns>(
     }) ?? [],
 );
 
-// 查询接口尚未接入，结果表只按模板字段展示列
 const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [],
-    data: [],
     minHeight: 240,
-    pagerConfig: { enabled: true },
+    pagerConfig: { enabled: true, pageSize: 20, pageSizes: [20, 50, 100, 200] },
+    proxyConfig: {
+      autoLoad: false,
+      ajax: {
+        query: async ({ page }) => {
+          const params = submitted.value;
+          const current = template.value;
+          if (!params || !current) return { items: [], total: 0 };
+          const result = await queryDataApi(props.projectId, {
+            ...params,
+            page: page.currentPage,
+            pageSize: page.pageSize,
+          });
+          database.value = result.database;
+          return {
+            items: result.list.map((row) => flattenRow(row, current.fields)),
+            total: result.total,
+          };
+        },
+      },
+    },
+    rowConfig: { keyField: '_logId' },
     toolbarConfig: { custom: true, zoom: true },
   } as VxeTableGridOptions,
 });
@@ -120,7 +178,9 @@ function fieldOf(condition: Condition) {
 
 function operatorsOf(condition: Condition) {
   const type = fieldOf(condition)?.type;
-  return type === 'number' || type === 'time' ? compare : textCompare;
+  if (type === 'number' || type === 'time') return compare;
+  if (type === 'boolean') return booleanCompare;
+  return textCompare;
 }
 
 function clearValue(condition: Condition) {
@@ -144,6 +204,8 @@ function reset() {
 
 function onModuleChange() {
   reset();
+  submitted.value = undefined;
+  gridApi.setGridOptions({ data: [] });
 }
 
 function addCondition() {
@@ -153,6 +215,80 @@ function addCondition() {
 function removeCondition(id: number) {
   conditions.value = conditions.value.filter((item) => item.id !== id);
 }
+
+/** 按字段类型把条件转换成接口格式，值不完整时返回 null */
+function toRequest(condition: Condition): DataQueryCondition | null {
+  const field = fieldOf(condition);
+  if (!field) return null;
+  const base = { field: field.key, operator: condition.operator };
+  const between = condition.operator === 'between';
+  if (field.type === 'time') {
+    if (between) {
+      return condition.range
+        ? {
+            ...base,
+            value: String(condition.range[0].valueOf()),
+            value2: String(condition.range[1].valueOf()),
+          }
+        : null;
+    }
+    return condition.time
+      ? { ...base, value: String(condition.time.valueOf()) }
+      : null;
+  }
+  if (field.type === 'number') {
+    if (between) {
+      return condition.min === undefined ||
+        condition.min === null ||
+        condition.max === undefined ||
+        condition.max === null
+        ? null
+        : {
+            ...base,
+            value: String(condition.min),
+            value2: String(condition.max),
+          };
+    }
+    return condition.number === undefined || condition.number === null
+      ? null
+      : { ...base, value: String(condition.number) };
+  }
+  return condition.text === undefined || condition.text === ''
+    ? null
+    : { ...base, value: condition.text };
+}
+
+function search() {
+  const current = template.value;
+  if (!current) {
+    message.warning('请选择查询模块');
+    return;
+  }
+  const [start, end] = timeRange.value ?? [];
+  if (!start || !end) {
+    message.warning('请选择时间范围');
+    return;
+  }
+  const requests = conditions.value.map((item) => toRequest(item));
+  if (requests.includes(null)) {
+    message.warning('请把查询条件填写完整');
+    return;
+  }
+  submitted.value = {
+    conditions: requests as DataQueryCondition[],
+    endTime: end.valueOf(),
+    relation: relation.value,
+    startTime: start.valueOf(),
+    templateId: current.id,
+  };
+  gridApi.query();
+}
+
+onMounted(async () => {
+  const result = await getQueryTemplatesApi(props.projectId, props.category);
+  database.value = result.database;
+  templates.value = result.list.map(parseTemplate);
+});
 </script>
 
 <template>
@@ -160,6 +296,8 @@ function removeCondition(id: number) {
     <section class="dc-section">
       <div class="dc-section-title">
         <h2>{{ title }}</h2>
+        <Tag v-if="database" color="orange">日志库：{{ database }}</Tag>
+        <Tag v-else>未配置日志存储</Tag>
       </div>
       <div class="dc-module">
         <label for="dc-module">查询模块</label>
@@ -170,6 +308,17 @@ function removeCondition(id: number) {
           allow-clear
           placeholder="请选择查询模块"
           @change="onModuleChange"
+        />
+      </div>
+      <div class="dc-module mt-4">
+        <label for="dc-time">时间范围</label>
+        <RangePicker
+          id="dc-time"
+          v-model:value="timeRange"
+          :allow-clear="false"
+          :presets="timePresets"
+          class="dc-time"
+          show-time
         />
       </div>
     </section>
@@ -231,6 +380,12 @@ function removeCondition(id: number) {
               placeholder="输入数值"
             />
           </template>
+          <Select
+            v-else-if="fieldOf(condition)?.type === 'boolean'"
+            v-model:value="condition.text"
+            :options="booleanOptions"
+            placeholder="选择值"
+          />
           <Input
             v-else
             v-model:value="condition.text"
@@ -258,7 +413,7 @@ function removeCondition(id: number) {
         </Button>
         <Space>
           <Button @click="reset">重置</Button>
-          <Button disabled type="primary">
+          <Button :disabled="!template" type="primary" @click="search">
             <template #icon>
               <IconifyIcon class="size-4" icon="lucide:search" />
             </template>
@@ -317,6 +472,16 @@ function removeCondition(id: number) {
 
 .dc-module :deep(.ant-select) {
   width: 320px;
+  max-width: 100%;
+}
+
+.dc-module label {
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.dc-module :deep(.dc-time) {
+  width: 420px;
   max-width: 100%;
 }
 

@@ -11,6 +11,7 @@ import { Avatar, Button, message, Upload } from 'ant-design-vue';
  */
 const props = withDefaults(
   defineProps<{
+    disabled?: boolean;
     /** data URL 最大字符数，与后端限制一致 */
     maxLength?: number;
     /** 输出图片的最长边 */
@@ -22,6 +23,7 @@ const props = withDefaults(
     size?: number;
   }>(),
   {
+    disabled: false,
     maxLength: 280_000,
     maxSide: 256,
     output: 'image/webp',
@@ -97,7 +99,7 @@ async function beforeUpload(file: File) {
         <IconifyIcon class="size-1/2" icon="lucide:image" />
       </template>
     </Avatar>
-    <div class="flex flex-col gap-2">
+    <div v-if="!disabled" class="flex flex-col gap-2">
       <div class="flex gap-2">
         <Upload
           :before-upload="beforeUpload"

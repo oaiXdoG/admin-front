@@ -5,6 +5,7 @@ import type { RoleRecord } from '#/api/types';
 
 import { h, ref } from 'vue';
 
+import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
@@ -25,6 +26,16 @@ import Permission from '../modules/permission.vue';
 const props = defineProps<{ kind: RoleKind; title: string }>();
 
 const projectStore = useProjectStore();
+const { hasAccessByCodes } = useAccess();
+/** 按钮权限标识的前缀，例如 manage_role:create */
+const CODE_PREFIX: Record<RoleKind, string> = {
+  platform: 'manage_role',
+  project: 'project_role',
+  template: 'manage_role_template',
+};
+function can(action: string) {
+  return hasAccessByCodes([`${CODE_PREFIX[props.kind]}:${action}`]);
+}
 const roleApi = useRoleApi(props.kind, () => projectStore.currentProjectId);
 
 const removing = ref(false);
@@ -169,18 +180,24 @@ async function onRemoveSelected() {
     <ImportModal @success="onRefresh" />
     <Grid :table-title="`${title}列表`">
       <template #toolbar-tools>
-        <Button class="mr-2" type="primary" @click="openForm(null)">
+        <Button
+          v-if="can('create')"
+          class="mr-2"
+          type="primary"
+          @click="openForm(null)"
+        >
           <Plus class="size-5" />
           新增
         </Button>
         <Button
-          v-if="kind === 'project'"
+          v-if="kind === 'project' && can('import')"
           class="mr-2"
           @click="importModalApi.open()"
         >
           从模板导入
         </Button>
         <Button
+          v-if="can('remove')"
           :disabled="selectedCount === 0"
           :loading="removing"
           danger
@@ -194,6 +211,7 @@ async function onRemoveSelected() {
         <Switch
           v-else
           :checked="row.status === 1"
+          :disabled="!can('update')"
           :loading="statusChanging === row.id"
           checked-children="启用"
           un-checked-children="停用"
@@ -202,6 +220,7 @@ async function onRemoveSelected() {
       </template>
       <template #action="{ row }">
         <Button
+          v-if="can('update')"
           :disabled="row.builtIn"
           size="small"
           type="link"
@@ -210,6 +229,7 @@ async function onRemoveSelected() {
           编辑
         </Button>
         <Button
+          v-if="can('menu')"
           :disabled="row.builtIn"
           size="small"
           type="link"
@@ -218,6 +238,7 @@ async function onRemoveSelected() {
           分配菜单
         </Button>
         <Button
+          v-if="can('remove')"
           :disabled="row.builtIn"
           danger
           size="small"

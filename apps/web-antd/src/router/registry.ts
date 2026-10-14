@@ -44,6 +44,12 @@ export const registeredRoutes: RegisteredRoute[] = [
     component: '/system/setting/index',
   },
   {
+    name: 'manage_operation_log',
+    path: '/manage/operation-log',
+    title: '操作日志',
+    component: '/system/operation-log/index',
+  },
+  {
     name: 'manage_project',
     path: '/manage/project',
     title: '项目管理',

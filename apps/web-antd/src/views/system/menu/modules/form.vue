@@ -11,7 +11,12 @@ import { useVbenForm } from '#/adapter/form';
 import { createMenuApi, updateMenuApi } from '#/api';
 import { registeredRoutes } from '#/router/registry';
 
-import { buildParentTree, useFormSchema } from '../data';
+import {
+  isValidParent,
+  MENU_TYPE_BUTTON,
+  MENU_TYPE_DIRECTORY,
+  useFormSchema,
+} from '../data';
 
 export type MenuEditor = { menus: MenuRecord[] } & (
   | { mode: 'create'; parent: MenuRecord | null }
@@ -19,6 +24,7 @@ export type MenuEditor = { menus: MenuRecord[] } & (
 );
 
 interface FormValues {
+  authCode?: string;
   hidden: boolean;
   icon?: string;
   menuType: number;
@@ -34,9 +40,21 @@ interface FormValues {
 const emit = defineEmits<{ success: [] }>();
 
 const editor = ref<MenuEditor | null>(null);
+/** 可选上级的范围：编辑时已排除自己和自己的下级 */
+const parentCandidates = ref<MenuRecord[]>([]);
 
 const [Form, formApi] = useVbenForm({
   handleValuesChange(values, fieldsChanged) {
+    // 切换类型后，原来的上级可能不再合法（按钮只能挂在菜单下）
+    if (
+      fieldsChanged.includes('menuType') &&
+      !isValidParent(parentCandidates.value, values.parentId, values.menuType)
+    ) {
+      formApi.setFieldValue(
+        'parentId',
+        values.menuType === MENU_TYPE_BUTTON ? undefined : 0,
+      );
+    }
     // 选择已注册路由后自动填入名称、路由名称和路径
     if (!fieldsChanged.includes('registeredRoute')) return;
     const route = registeredRoutes.find(
@@ -61,6 +79,19 @@ function descendantIds(menus: MenuRecord[], id: number): number[] {
 }
 
 function toWrite(values: FormValues, parentId?: number): MenuWrite {
+  if (values.menuType === MENU_TYPE_BUTTON) {
+    return {
+      hidden: false,
+      icon: '',
+      menuType: values.menuType,
+      name: values.name.trim(),
+      parentId,
+      routeName: values.authCode?.trim() ?? '',
+      routePath: '',
+      sort: values.sort ?? 0,
+      status: values.status,
+    };
+  }
   return {
     scope: values.scope,
     hidden: values.hidden ?? false,
@@ -103,15 +134,22 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
     if (!data) return;
     editor.value = data;
     const isEdit = data.mode === 'edit';
-    const excluded = isEdit ? descendantIds(data.menus, data.record.id) : [];
-    const parentTree = buildParentTree(
-      data.menus.filter((menu) => !excluded.includes(menu.id)),
-      isEdit ? data.record.id : undefined,
+    const excluded = isEdit
+      ? [data.record.id, ...descendantIds(data.menus, data.record.id)]
+      : [];
+    parentCandidates.value = data.menus.filter(
+      (menu) => !excluded.includes(menu.id),
     );
-    formApi.setState({ schema: useFormSchema(parentTree) });
+    formApi.setState({ schema: useFormSchema(parentCandidates.value) });
     formApi.reset();
     if (data.mode === 'create') {
-      formApi.setValues({ parentId: data.parent?.id ?? 0 });
+      // 在菜单上「新增按钮」时类型默认为按钮
+      const parent = data.parent;
+      formApi.setValues(
+        parent && parent.menuType !== MENU_TYPE_DIRECTORY
+          ? { menuType: MENU_TYPE_BUTTON, parentId: parent.id }
+          : { parentId: parent?.id ?? 0 },
+      );
     } else {
       const { record } = data;
       const registered = registeredRoutes.some(
@@ -121,6 +159,8 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
         parentId: record.parentId || 0,
         scope: record.scope,
         registeredRoute: registered ? record.routeName : undefined,
+        authCode:
+          record.menuType === MENU_TYPE_BUTTON ? record.routeName : undefined,
         hidden: record.hidden,
         icon: record.icon,
         menuType: record.menuType,
@@ -136,9 +176,11 @@ const [Modal, modalApi] = useVbenModal<MenuEditor>({
 
 const title = computed(() => {
   if (editor.value?.mode === 'edit') return '编辑菜单';
-  return editor.value?.parent
-    ? `新增子菜单：${editor.value.parent.name}`
-    : '新增菜单';
+  const parent = editor.value?.parent;
+  if (!parent) return '新增菜单';
+  return parent.menuType === MENU_TYPE_DIRECTORY
+    ? `新增子菜单：${parent.name}`
+    : `新增按钮：${parent.name}`;
 });
 </script>
 

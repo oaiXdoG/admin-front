@@ -66,12 +66,13 @@ const [Modal, modalApi] = useVbenModal({
 
 <template>
   <Modal class="w-[520px]" confirm-text="导入" title="从模板导入">
-    <Alert
-      class="mb-4"
-      message="模板会连同菜单权限复制到当前项目，之后可以在本项目里单独调整，不影响模板和其他项目。"
-      show-icon
-      type="info"
-    />
+    <div class="mb-4">
+      <Alert
+        message="模板会连同菜单权限复制到当前项目，之后可以在本项目里单独调整，不影响模板和其他项目。"
+        show-icon
+        type="info"
+      />
+    </div>
     <Spin :spinning="loading">
       <CheckboxGroup v-if="templates.length > 0" v-model:value="selected">
         <div class="flex flex-col gap-2">

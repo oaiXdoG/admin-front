@@ -6,6 +6,7 @@ import type { MenuRecord } from '#/api/types';
 
 import { ref } from 'vue';
 
+import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { IconifyIcon, Plus } from '@vben/icons';
 
@@ -16,12 +17,16 @@ import { getMenuListApi, removeMenuApi } from '#/api';
 import { SCOPE_PLATFORM } from '#/api/types';
 
 import {
+  MENU_TYPE_BUTTON,
   MENU_TYPE_DIRECTORY,
+  MENU_TYPE_MENU,
   SCOPE_NAMES,
   useColumns,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
+
+const { hasAccessByCodes } = useAccess();
 
 /** 完整菜单列表，供编辑弹窗选择上级目录和计算默认 ID */
 const allMenus = ref<MenuRecord[]>([]);
@@ -125,6 +130,7 @@ function onRemove(row: MenuRecord) {
     <Grid table-title="菜单列表">
       <template #toolbar-tools>
         <Button
+          v-if="hasAccessByCodes(['manage_menu:create'])"
           type="primary"
           @click="openEditor({ mode: 'create', parent: null })"
         >
@@ -142,7 +148,9 @@ function onRemove(row: MenuRecord) {
               (row.icon?.includes(':') && row.icon) ||
               (row.menuType === MENU_TYPE_DIRECTORY
                 ? 'lucide:folder'
-                : 'lucide:file-text')
+                : row.menuType === MENU_TYPE_BUTTON
+                  ? 'lucide:mouse-pointer-click'
+                  : 'lucide:file-text')
             "
           />
           {{ row.name }}
@@ -159,16 +167,27 @@ function onRemove(row: MenuRecord) {
         </Tag>
       </template>
       <template #action="{ row }">
-        <Button
-          v-if="row.menuType === MENU_TYPE_DIRECTORY"
-          size="small"
-          type="link"
-          @click="openEditor({ mode: 'create', parent: row })"
-        >
-          新增子菜单
-        </Button>
+        <template v-if="hasAccessByCodes(['manage_menu:create'])">
+          <Button
+            v-if="row.menuType === MENU_TYPE_DIRECTORY"
+            size="small"
+            type="link"
+            @click="openEditor({ mode: 'create', parent: row })"
+          >
+            新增子菜单
+          </Button>
+          <Button
+            v-else-if="row.menuType === MENU_TYPE_MENU"
+            size="small"
+            type="link"
+            @click="openEditor({ mode: 'create', parent: row })"
+          >
+            新增按钮
+          </Button>
+        </template>
         <template v-if="!row.builtIn">
           <Button
+            v-if="hasAccessByCodes(['manage_menu:update'])"
             size="small"
             type="link"
             @click="openEditor({ mode: 'edit', record: row })"
@@ -176,6 +195,7 @@ function onRemove(row: MenuRecord) {
             编辑
           </Button>
           <Tooltip
+            v-if="hasAccessByCodes(['manage_menu:remove'])"
             :title="parentIds.has(row.id) ? '下面还有子项，请先删除子项' : ''"
           >
             <Button

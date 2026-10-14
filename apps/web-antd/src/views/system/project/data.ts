@@ -20,26 +20,34 @@ export function generateAppKey() {
 }
 
 /**
- * @param onGenerate 点击「随机生成」时调用，由使用方把生成的值写回表单
+ * @param onGenerate 点击「随机生成」时调用，由使用方把生成的值写回表单；为 null 时是编辑，App Key 只读
  * @param withTemplates 新建项目时显示「初始角色模板」
  */
 export function useProjectFormSchema(
-  onGenerate: () => void,
+  onGenerate: (() => void) | null,
   withTemplates = false,
 ): VbenFormSchema[] {
   return [
     {
       component: 'Input',
-      componentProps: { maxlength: 64, placeholder: '请输入 App Key' },
+      componentProps: {
+        disabled: !onGenerate,
+        maxlength: 64,
+        placeholder: '请输入 App Key',
+      },
       fieldName: 'appKey',
-      renderComponentContent: () => ({
-        addonAfter: () =>
-          h(
-            Button,
-            { size: 'small', type: 'link', onClick: onGenerate },
-            () => '随机生成',
-          ),
-      }),
+      help: '日志按 App Key 区分项目，创建后不能修改',
+      renderComponentContent: () =>
+        onGenerate
+          ? {
+              addonAfter: () =>
+                h(
+                  Button,
+                  { size: 'small', type: 'link', onClick: onGenerate },
+                  () => '随机生成',
+                ),
+            }
+          : {},
       label: 'App Key',
       rules: z
         .string()

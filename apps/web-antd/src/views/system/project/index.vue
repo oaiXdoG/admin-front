@@ -4,6 +4,7 @@ import type { ProjectManageItem } from '#/api/types';
 
 import { watch } from 'vue';
 
+import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 
@@ -22,6 +23,7 @@ import { useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 const projectStore = useProjectStore();
+const { hasAccessByCodes } = useAccess();
 
 const [FormModal, formModalApi] = useVbenModal({
   connectedComponent: Form,
@@ -110,6 +112,7 @@ async function onReopen(row: ProjectManageItem) {
     <Grid table-title="项目列表">
       <template #toolbar-tools>
         <Button
+          v-if="hasAccessByCodes(['manage_project:create'])"
           :disabled="projectStore.mustCreate"
           type="primary"
           @click="projectStore.createOpen = true"
@@ -124,19 +127,28 @@ async function onReopen(row: ProjectManageItem) {
         </Tag>
       </template>
       <template #action="{ row }">
-        <Button size="small" type="link" @click="onEdit(row)">编辑</Button>
         <Button
-          v-if="row.status === STATUS_ENABLED"
-          danger
+          v-if="hasAccessByCodes(['manage_project:update'])"
           size="small"
           type="link"
-          @click="onClose(row)"
+          @click="onEdit(row)"
         >
-          关闭
+          编辑
         </Button>
-        <Button v-else size="small" type="link" @click="onReopen(row)">
-          重新启用
-        </Button>
+        <template v-if="hasAccessByCodes(['manage_project:status'])">
+          <Button
+            v-if="row.status === STATUS_ENABLED"
+            danger
+            size="small"
+            type="link"
+            @click="onClose(row)"
+          >
+            关闭
+          </Button>
+          <Button v-else size="small" type="link" @click="onReopen(row)">
+            重新启用
+          </Button>
+        </template>
       </template>
     </Grid>
   </Page>

@@ -92,10 +92,15 @@ export interface ProjectMember {
   createdAt: number;
 }
 
+/** 菜单类型 */
+export const MENU_DIRECTORY = 1;
+export const MENU_ITEM = 2;
+export const MENU_BUTTON = 3;
+
 export interface MenuRecord {
   id: number;
   parentId: number;
-  /** 1 目录，2 菜单 */
+  /** 1 目录，2 菜单，3 按钮（routeName 是权限标识） */
   menuType: number;
   /** 1 平台，2 项目；子项跟随上级 */
   scope: number;
@@ -170,4 +175,122 @@ export interface SystemSetting {
   loginTitle: string;
   loginDescription: string;
   copyright: string;
+}
+
+/** 日志存储（ClickHouse）连接配置，密码不返回，只返回是否已设置 */
+export interface LogStorage {
+  url: string;
+  database: string;
+  readUser: string;
+  readPasswordSet: boolean;
+  adminUser: string;
+  adminPasswordSet: boolean;
+}
+
+/** 密码留空表示沿用已保存的密码 */
+export interface LogStorageWrite {
+  url: string;
+  database: string;
+  readUser: string;
+  readPassword?: string;
+  adminUser?: string;
+  adminPassword?: string;
+}
+
+export interface LogStorageTestResult {
+  readOk: boolean;
+  readMessage?: string;
+  /** 未配置管理账号时为空 */
+  adminOk?: boolean;
+  adminMessage?: string;
+  version?: string;
+  retentionDays?: number;
+}
+
+/** 查询模板；fields 是字段映射 JSON 文本 */
+export interface QueryTemplateRecord {
+  id: number;
+  category: 'data' | 'log';
+  name: string;
+  event: string;
+  fields: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface QueryTemplateWrite {
+  category: 'data' | 'log';
+  name: string;
+  event: string;
+  fields: string;
+}
+
+export interface DataQueryCondition {
+  field: string;
+  operator: string;
+  value?: string;
+  value2?: string;
+}
+
+export interface DataQueryParams {
+  templateId: number;
+  startTime: number;
+  endTime: number;
+  relation: string;
+  conditions: DataQueryCondition[];
+  page: number;
+  pageSize: number;
+}
+
+export interface LogRow {
+  logId: string;
+  time: number;
+  server: string;
+  actor: string;
+  event: string;
+  retention: string;
+  data: Record<string, unknown>;
+}
+
+export interface DataQueryResult {
+  database: string;
+  total: number;
+  list: LogRow[];
+}
+
+/** 后台操作日志的一行；params 是请求参数，密码和图片已脱敏 */
+export interface OperationLogRow {
+  id: number;
+  time: number;
+  accountId?: number;
+  account: string;
+  action: string;
+  route: string;
+  success: boolean;
+  code: number;
+  params: Record<string, unknown>;
+}
+
+export interface OperationLogParams {
+  startTime: number;
+  endTime: number;
+  account?: string;
+  action?: string;
+  success?: boolean;
+  page: number;
+  pageSize: number;
+}
+
+/** 数据库备份设置、最近一次结果和已有备份；lastSuccess 为空表示还没有备份过 */
+export interface BackupInfo {
+  enabled: boolean;
+  /** 每天备份的时间，HH:mm */
+  time: string;
+  keep: number;
+  dir: string;
+  running: boolean;
+  lastTime?: number;
+  lastSuccess?: boolean;
+  lastMessage: string;
+  files: { createdAt: number; name: string; size: number }[];
 }

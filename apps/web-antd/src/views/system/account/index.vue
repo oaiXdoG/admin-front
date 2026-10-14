@@ -4,6 +4,7 @@ import type { AccountRecord } from '#/api/types';
 
 import { ref } from 'vue';
 
+import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { Plus } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
@@ -20,6 +21,7 @@ import Projects from './modules/projects.vue';
 import Roles from './modules/roles.vue';
 
 const userStore = useUserStore();
+const { hasAccessByCodes } = useAccess();
 const statusChanging = ref<null | number>(null);
 
 const [FormModal, formModalApi] = useVbenModal({ connectedComponent: Form });
@@ -107,7 +109,11 @@ function onStatusChange(row: AccountRecord, checked: boolean) {
     <RolesModal @success="onRefresh" />
     <Grid table-title="用户列表">
       <template #toolbar-tools>
-        <Button type="primary" @click="formModalApi.setData(null).open()">
+        <Button
+          v-if="hasAccessByCodes(['manage_user:create'])"
+          type="primary"
+          @click="formModalApi.setData(null).open()"
+        >
           <Plus class="size-5" />
           新增
         </Button>
@@ -126,7 +132,7 @@ function onStatusChange(row: AccountRecord, checked: boolean) {
       <template #status="{ row }">
         <Switch
           :checked="row.status === STATUS_ENABLED"
-          :disabled="isSelf(row)"
+          :disabled="isSelf(row) || !hasAccessByCodes(['manage_user:status'])"
           :loading="statusChanging === row.id"
           checked-children="启用"
           un-checked-children="禁用"
@@ -135,6 +141,7 @@ function onStatusChange(row: AccountRecord, checked: boolean) {
       </template>
       <template #action="{ row }">
         <Button
+          v-if="hasAccessByCodes(['manage_user:update'])"
           size="small"
           type="link"
           @click="formModalApi.setData(row).open()"
@@ -142,6 +149,7 @@ function onStatusChange(row: AccountRecord, checked: boolean) {
           编辑
         </Button>
         <Button
+          v-if="hasAccessByCodes(['manage_user:role'])"
           size="small"
           type="link"
           @click="rolesModalApi.setData(row).open()"
@@ -149,6 +157,7 @@ function onStatusChange(row: AccountRecord, checked: boolean) {
           平台角色
         </Button>
         <Button
+          v-if="hasAccessByCodes(['manage_user:project'])"
           size="small"
           type="link"
           @click="projectsModalApi.setData(row).open()"

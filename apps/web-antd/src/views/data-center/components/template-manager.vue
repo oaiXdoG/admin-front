@@ -6,8 +6,9 @@ import type { Category, Template, TemplateValues } from '../types';
 
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
+import { useAccess } from '@vben/access';
 import { IconifyIcon } from '@vben/icons';
 
 import {
@@ -15,51 +16,45 @@ import {
   Form,
   FormItem,
   Input,
+  message,
   Modal,
   Select,
   Tag,
 } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import {
+  createQueryTemplateApi,
+  getQueryTemplatesApi,
+  removeQueryTemplateApi,
+  updateQueryTemplateApi,
+} from '#/api';
 
-import { categories } from '../types';
+import { categories, parseTemplate } from '../types';
 import FieldMappingEditor from './field-mapping-editor.vue';
 
-const props = defineProps<{
-  projectId: number;
-  templates: Template[];
-}>();
+const props = defineProps<{ projectId: number }>();
 
-const emit = defineEmits<{
-  remove: [id: number];
-  save: [template: Template];
-}>();
+const { hasAccessByCodes } = useAccess();
 
 const nameRules: Rule[] = [
   { message: '请输入模板名称', required: true, whitespace: true },
 ];
 const categoryRules: Rule[] = [{ required: true }];
-const urlRules: Rule[] = [
-  { message: '请输入完整接口地址', required: true, whitespace: true },
+const eventRules: Rule[] = [
+  { message: '请输入事件名', required: true, whitespace: true },
   {
-    validator: (_rule: Rule, value: string) => {
-      if (!value?.trim()) return Promise.resolve();
-      try {
-        const url = new URL(value.trim());
-        if (url.protocol === 'https:' || url.protocol === 'http:') {
-          return Promise.resolve();
-        }
-      } catch {
-        // 无法解析的地址视为无效
-      }
-      return Promise.reject(new Error('请输入完整的 HTTP 或 HTTPS 地址'));
-    },
+    message: '小写字母开头，只能包含小写字母、数字和下划线',
+    pattern: /^[a-z][a-z0-9_]{0,63}$/,
   },
 ];
 
 const editor = ref<'new' | null | Template>(null);
 const formRef = ref<FormInstance>();
 const formState = ref<TemplateValues>(emptyValues());
+const saving = ref(false);
+/** 当前连接的日志库，提示查询的是哪个环境 */
+const database = ref('');
 
 const editorOpen = computed(() => editor.value !== null);
 
@@ -94,7 +89,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
         title: '分类',
         width: 120,
       },
-      { align: 'left', field: 'url', minWidth: 260, title: '查询接口地址' },
+      { align: 'left', field: 'event', minWidth: 200, title: '事件名' },
+      {
+        field: 'fields',
+        formatter: ({ cellValue }) => `${cellValue.length} 个`,
+        title: '字段',
+        width: 90,
+      },
       {
         field: 'operation',
         fixed: 'right',
@@ -112,11 +113,15 @@ const [Grid, gridApi] = useVbenVxeGrid({
           formValues: { category?: Category; keyword?: string },
         ) => {
           const keyword = formValues.keyword?.trim() ?? '';
-          const rows = props.templates.filter(
-            (item) =>
-              item.name.includes(keyword) &&
-              (!formValues.category || item.category === formValues.category),
-          );
+          const result = await getQueryTemplatesApi(props.projectId);
+          database.value = result.database;
+          const rows = result.list
+            .map(parseTemplate)
+            .filter(
+              (item) =>
+                (item.name.includes(keyword) || item.event.includes(keyword)) &&
+                (!formValues.category || item.category === formValues.category),
+            );
           const start = (page.currentPage - 1) * page.pageSize;
           return {
             items: rows.slice(start, start + page.pageSize),
@@ -130,24 +135,18 @@ const [Grid, gridApi] = useVbenVxeGrid({
   } as VxeTableGridOptions<Template>,
 });
 
-// 模板保存或删除后刷新列表
-watch(
-  () => props.templates,
-  () => gridApi.query(),
-);
-
 function emptyValues(): TemplateValues {
-  return { category: 'data', fields: [], name: '', url: '' };
+  return { category: 'log', event: '', fields: [], name: '' };
 }
 
 function open(template: 'new' | Template) {
   if (template === 'new') {
     formState.value = emptyValues();
   } else {
-    const { category, fields, name, url } = JSON.parse(
+    const { category, event, fields, name } = JSON.parse(
       JSON.stringify(template),
     ) as Template;
-    formState.value = { category, fields, name, url };
+    formState.value = { category, event, fields, name };
   }
   editor.value = template;
 }
@@ -164,15 +163,36 @@ async function submit() {
     return;
   }
   const values = JSON.parse(JSON.stringify(formState.value)) as TemplateValues;
-  emit('save', {
-    ...values,
-    fields: values.fields ?? [],
-    id: editor.value === 'new' ? Date.now() : editor.value.id,
+  if (values.fields.length === 0) {
+    message.error('请至少添加一个字段');
+    return;
+  }
+  const data = {
+    category: values.category,
+    event: values.event.trim(),
+    fields: JSON.stringify(
+      values.fields.map((field) => ({
+        ...field,
+        key: field.key.trim(),
+        label: field.label.trim(),
+        source: field.source.trim(),
+      })),
+    ),
     name: values.name.trim(),
-    projectId: props.projectId,
-    url: values.url.trim(),
-  });
-  close();
+  };
+  saving.value = true;
+  try {
+    await (editor.value === 'new'
+      ? createQueryTemplateApi(props.projectId, data)
+      : updateQueryTemplateApi(props.projectId, editor.value.id, data));
+    message.success('模板已保存');
+    close();
+    gridApi.query();
+  } catch {
+    // 错误信息已由请求拦截器提示
+  } finally {
+    saving.value = false;
+  }
 }
 
 function confirmRemove(row: Template) {
@@ -182,7 +202,11 @@ function confirmRemove(row: Template) {
     okButtonProps: { danger: true },
     okText: '删除',
     title: '删除模板',
-    onOk: () => emit('remove', row.id),
+    async onOk() {
+      await removeQueryTemplateApi(props.projectId, row.id);
+      message.success('模板已删除');
+      gridApi.query();
+    },
   });
 }
 </script>
@@ -190,8 +214,18 @@ function confirmRemove(row: Template) {
 <template>
   <div class="h-full">
     <Grid table-title="查询模板">
+      <template #toolbar-actions>
+        <span class="ml-2">
+          <Tag v-if="database" color="orange">日志库：{{ database }}</Tag>
+          <Tag v-else>未配置日志存储</Tag>
+        </span>
+      </template>
       <template #toolbar-tools>
-        <Button type="primary" @click="open('new')">
+        <Button
+          v-if="hasAccessByCodes(['data_template:create'])"
+          type="primary"
+          @click="open('new')"
+        >
           <template #icon>
             <IconifyIcon class="size-4" icon="lucide:plus" />
           </template>
@@ -204,8 +238,21 @@ function confirmRemove(row: Template) {
         </Tag>
       </template>
       <template #action="{ row }">
-        <Button size="small" type="link" @click="open(row)">编辑</Button>
-        <Button danger size="small" type="link" @click="confirmRemove(row)">
+        <Button
+          v-if="hasAccessByCodes(['data_template:update'])"
+          size="small"
+          type="link"
+          @click="open(row)"
+        >
+          编辑
+        </Button>
+        <Button
+          v-if="hasAccessByCodes(['data_template:remove'])"
+          danger
+          size="small"
+          type="link"
+          @click="confirmRemove(row)"
+        >
           删除
         </Button>
       </template>
@@ -213,6 +260,7 @@ function confirmRemove(row: Template) {
 
     <Modal
       :open="editorOpen"
+      :confirm-loading="saving"
       :title="editor === 'new' ? '新增查询模板' : '编辑查询模板'"
       :width="1100"
       cancel-text="取消"
@@ -244,12 +292,25 @@ function confirmRemove(row: Template) {
               />
             </FormItem>
           </div>
-          <FormItem label="完整查询接口地址" name="url" :rules="urlRules">
-            <Input v-model:value="formState.url" placeholder="https://" />
+          <FormItem
+            extra="与业务代码里 LogReporter.event(...) 的事件名一致"
+            label="事件名"
+            name="event"
+            :rules="eventRules"
+          >
+            <Input
+              v-model:value="formState.event"
+              placeholder="例如 pay_success"
+            />
           </FormItem>
         </section>
         <section class="dc-editor-section">
           <h3>字段映射</h3>
+          <p class="dc-editor-hint">
+            取值来源可以是日志自带列（time、actor、server 等），也可以是业务字段
+            data.字段名，多层用点连接，例如
+            data.order.amount。字段决定结果列和可用的查询条件。
+          </p>
           <FieldMappingEditor v-model="formState.fields" />
         </section>
       </Form>
@@ -274,6 +335,12 @@ function confirmRemove(row: Template) {
   padding-top: 20px;
   margin-top: 20px;
   border-top: 1px solid hsl(var(--border));
+}
+
+.dc-editor-hint {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
 }
 
 .dc-editor-section h3 {

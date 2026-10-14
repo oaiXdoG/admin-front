@@ -50,12 +50,13 @@ const [Modal, modalApi] = useVbenModal<AccountRecord>({
 
 <template>
   <Modal :title="`分配平台角色 · ${account?.account ?? ''}`" class="w-[480px]">
-    <Alert
-      class="mb-4"
-      message="平台角色决定能使用哪些系统管理功能；项目里的权限在「关联项目」或项目的成员管理里分配。"
-      show-icon
-      type="info"
-    />
+    <div class="mb-4">
+      <Alert
+        message="平台角色决定能使用哪些系统管理功能；项目里的权限在「关联项目」或项目的成员管理里分配。"
+        show-icon
+        type="info"
+      />
+    </div>
     <Spin :spinning="loading">
       <CheckboxGroup
         v-model:value="selected"

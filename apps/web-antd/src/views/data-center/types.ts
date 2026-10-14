@@ -1,5 +1,7 @@
 import type { TreeProps } from 'ant-design-vue';
 
+import type { LogRow, QueryTemplateRecord } from '#/api/types';
+
 import { toRaw } from 'vue';
 
 import dayjs from 'dayjs';
@@ -26,25 +28,43 @@ export interface JsonConfig {
   showRaw: boolean;
 }
 
+/**
+ * 字段映射：source 是日志自带列（time、server、actor、event、logId、retention）
+ * 或业务字段路径 data.<字段>[.<子字段>…]，key 是结果列标识
+ */
 export interface FieldMapping {
   json?: JsonConfig;
   key: string;
   label: string;
   source: string;
-  sourceType: string;
   type: ValueType;
 }
 
 export interface TemplateValues {
   category: Category;
+  event: string;
   fields: FieldMapping[];
   name: string;
-  url: string;
 }
 
 export interface Template extends TemplateValues {
   id: number;
-  projectId: number;
+}
+
+export function parseTemplate(record: QueryTemplateRecord): Template {
+  let fields: FieldMapping[] = [];
+  try {
+    fields = JSON.parse(record.fields) as FieldMapping[];
+  } catch {
+    // 字段配置损坏时按无字段处理，编辑保存后恢复
+  }
+  return {
+    category: record.category,
+    event: record.event,
+    fields,
+    id: record.id,
+    name: record.name,
+  };
 }
 
 export const categories: { label: string; value: Category }[] = [
@@ -52,15 +72,22 @@ export const categories: { label: string; value: Category }[] = [
   { label: '日志查询', value: 'log' },
 ];
 
-export const sourceTypes = [
-  'txt',
-  'varchar',
-  'int',
-  'bigint',
-  'decimal',
-  'boolean',
-  'datetime',
-].map((value) => ({ label: value, value }));
+/** 日志自带列，其余字段写 data.<字段路径> */
+export const columnSources: {
+  label: string;
+  type: ValueType;
+  value: string;
+}[] = [
+  { label: '时间', type: 'time', value: 'time' },
+  { label: '主体 ID', type: 'string', value: 'actor' },
+  { label: '服务器', type: 'string', value: 'server' },
+  { label: '事件名', type: 'string', value: 'event' },
+  { label: '日志 ID', type: 'string', value: 'logId' },
+  { label: '保留方式', type: 'string', value: 'retention' },
+];
+
+export const SOURCE_PATTERN =
+  /^(?:time|server|actor|event|logId|retention|data(?:\.[\w$-]{1,64}){1,8})$/;
 
 export const valueTypes: { label: string; value: ValueType }[] = [
   { label: '文本', value: 'string' },
@@ -162,4 +189,63 @@ export function useRowKey() {
     }
     return key;
   };
+}
+
+/**
+ * 按 inspectSample 生成的路径（$、$.key、$["key"]、$[0]）读取值，读不到返回 undefined
+ */
+export function readPath(value: unknown, path: string): unknown {
+  if (!path.startsWith('$')) return undefined;
+  const pattern = /\.([A-Z_$][\w$]*)|\[(\d+)\]|\[("(?:[^"\\]|\\.)*")\]/giy;
+  pattern.lastIndex = 1;
+  let current = value;
+  while (pattern.lastIndex < path.length) {
+    const match = pattern.exec(path);
+    if (!match) return undefined;
+    const key =
+      match[1] ?? match[2] ?? (JSON.parse(match[3] as string) as string);
+    if (current === null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+/** 日志行里某个字段映射的原始值 */
+export function fieldValue(row: LogRow, field: FieldMapping): unknown {
+  if (!field.source.startsWith('data.')) {
+    return (row as unknown as Record<string, unknown>)[field.source];
+  }
+  let current: unknown = row.data;
+  for (const segment of field.source.slice('data.'.length).split('.')) {
+    if (current === null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+/**
+ * 把日志行按模板字段展开成表格行：列 key 为字段 key，JSON 子字段为 key:路径
+ */
+export function flattenRow(row: LogRow, fields: FieldMapping[]) {
+  const result: Record<string, string> = { _logId: row.logId };
+  for (const field of fields) {
+    const raw = fieldValue(row, field);
+    result[field.key] = displaySample(raw, field.type);
+    if (!isJsonType(field.type) || !field.json?.showMapped) continue;
+    let parsed = raw;
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = undefined;
+      }
+    }
+    for (const mapping of field.json.mappings ?? []) {
+      result[`${field.key}:${mapping.path}`] = displaySample(
+        readPath(parsed, mapping.path),
+        mapping.type,
+      );
+    }
+  }
+  return result;
 }

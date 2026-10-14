@@ -15,20 +15,34 @@ export const SCOPE_NAMES: Record<number, string> = {
 
 export const MENU_TYPE_MENU = 2;
 
+/** 按钮挂在菜单下，routeName 保存权限标识 */
+export const MENU_TYPE_BUTTON = 3;
+
+export const MENU_TYPE_NAMES: Record<number, string> = {
+  [MENU_TYPE_DIRECTORY]: '目录',
+  [MENU_TYPE_MENU]: '菜单',
+  [MENU_TYPE_BUTTON]: '按钮',
+};
+
 interface ParentNode {
   children: ParentNode[];
+  selectable: boolean;
   title: string;
   value: number;
 }
 
 /**
- * 上级目录可选项：只有目录能做上级，编辑时排除自己和自己的下级，避免形成循环
+ * 上级可选项：目录和菜单的上级只能是目录，按钮的上级只能是菜单（目录只用来展开）。
+ * 传入的列表已排除自己和自己的下级，避免形成循环。
  */
-export function buildParentTree(menus: MenuRecord[], excludeId?: number) {
+export function buildParentTree(menus: MenuRecord[], menuType: number) {
+  const forButton = menuType === MENU_TYPE_BUTTON;
   const byParent = new Map<number, MenuRecord[]>();
   for (const menu of menus) {
-    if (menu.menuType !== MENU_TYPE_DIRECTORY || menu.id === excludeId)
-      continue;
+    const usable =
+      menu.menuType === MENU_TYPE_DIRECTORY ||
+      (forButton && menu.menuType === MENU_TYPE_MENU);
+    if (!usable) continue;
     const list = byParent.get(menu.parentId || 0) ?? [];
     list.push(menu);
     byParent.set(menu.parentId || 0, list);
@@ -38,26 +52,71 @@ export function buildParentTree(menus: MenuRecord[], excludeId?: number) {
       .toSorted((a, b) => a.sort - b.sort || a.id - b.id)
       .map((menu) => ({
         children: build(menu.id),
+        selectable: forButton
+          ? menu.menuType === MENU_TYPE_MENU
+          : menu.menuType === MENU_TYPE_DIRECTORY,
         title: menu.name,
         value: menu.id,
       }));
-  return [{ children: build(0), title: '顶级（无上级）', value: 0 }];
+  if (forButton) return build(0);
+  return [
+    { children: build(0), selectable: true, title: '顶级（无上级）', value: 0 },
+  ];
 }
 
-export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
+/** 上级是否符合类型要求，切换类型后用来清掉不再合法的上级 */
+export function isValidParent(
+  menus: MenuRecord[],
+  parentId: number | undefined,
+  menuType: number,
+) {
+  if (!parentId) return menuType !== MENU_TYPE_BUTTON;
+  const parent = menus.find((menu) => menu.id === parentId);
+  return (
+    parent?.menuType ===
+    (menuType === MENU_TYPE_BUTTON ? MENU_TYPE_MENU : MENU_TYPE_DIRECTORY)
+  );
+}
+
+export function useFormSchema(menus: MenuRecord[]): VbenFormSchema[] {
+  const isButton = (values: Record<string, any>) =>
+    values.menuType === MENU_TYPE_BUTTON;
   return [
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        options: [
+          { label: '目录', value: MENU_TYPE_DIRECTORY },
+          { label: '菜单', value: MENU_TYPE_MENU },
+          { label: '按钮', value: MENU_TYPE_BUTTON },
+        ],
+      },
+      defaultValue: MENU_TYPE_MENU,
+      fieldName: 'menuType',
+      help: '按钮挂在菜单下面，用来控制页面里的操作，例如新建、删除',
+      label: '类型',
+      rules: 'selectRequired',
+    },
     {
       component: 'TreeSelect',
       componentProps: {
         class: 'w-full',
         showSearch: true,
-        treeData: parentTree,
         treeDefaultExpandAll: true,
         treeNodeFilterProp: 'title',
       },
       defaultValue: 0,
+      dependencies: {
+        resolve: ({ values }) => ({
+          componentProps: {
+            placeholder: isButton(values) ? '选择所属菜单' : '选择上级目录',
+            treeData: buildParentTree(menus, values.menuType),
+          },
+        }),
+        triggerFields: ['menuType'],
+      },
       fieldName: 'parentId',
-      label: '上级目录',
+      label: '上级',
       rules: 'selectRequired',
     },
     {
@@ -71,25 +130,14 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
       defaultValue: SCOPE_PROJECT,
       // 只有顶级目录选择范围，子项跟随上级
       dependencies: {
-        resolve: ({ values }) => ({ show: !values.parentId }),
-        triggerFields: ['parentId'],
+        resolve: ({ values }) => ({
+          show: !values.parentId && !isButton(values),
+        }),
+        triggerFields: ['parentId', 'menuType'],
       },
       fieldName: 'scope',
       help: '平台菜单只能分配给平台角色；项目菜单只能分配给角色模板和项目角色。子项自动跟随上级目录',
       label: '范围',
-      rules: 'selectRequired',
-    },
-    {
-      component: 'RadioGroup',
-      componentProps: {
-        options: [
-          { label: '目录', value: MENU_TYPE_DIRECTORY },
-          { label: '菜单', value: MENU_TYPE_MENU },
-        ],
-      },
-      defaultValue: MENU_TYPE_MENU,
-      fieldName: 'menuType',
-      label: '类型',
       rules: 'selectRequired',
     },
     {
@@ -115,6 +163,7 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
               })),
           },
           rules: values.menuType === MENU_TYPE_MENU ? 'selectRequired' : null,
+          show: !isButton(values),
         }),
         triggerFields: ['menuType'],
       },
@@ -134,8 +183,35 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
         .max(64, { message: '名称最长 64 位' }),
     },
     {
+      component: 'Input',
+      componentProps: { maxlength: 64, placeholder: '例如 manage_user:create' },
+      dependencies: {
+        resolve: ({ values }) => ({
+          rules: isButton(values)
+            ? z
+                .string()
+                .trim()
+                .min(1, { message: '请输入权限标识' })
+                .max(64, { message: '权限标识最长 64 位' })
+                .regex(/^[\w-]+:[\w-]+$/, {
+                  message: '格式为 页面路由名称:操作',
+                })
+            : null,
+          show: isButton(values),
+        }),
+        triggerFields: ['menuType'],
+      },
+      fieldName: 'authCode',
+      help: '服务器按权限标识校验接口，前端按它显示按钮。格式为「页面路由名称:操作」，必须与后端代码一致',
+      label: '权限标识',
+    },
+    {
       component: 'IconPicker',
       componentProps: { placeholder: '可空，例如 lucide:users' },
+      dependencies: {
+        resolve: ({ values }) => ({ show: !isButton(values) }),
+        triggerFields: ['menuType'],
+      },
       fieldName: 'icon',
       label: '图标',
       rules: z.string().max(64, { message: '图标最长 64 位' }).optional(),
@@ -146,6 +222,7 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
       dependencies: {
         resolve: ({ values }) => ({
           disabled: values.menuType === MENU_TYPE_MENU,
+          show: !isButton(values),
         }),
         triggerFields: ['menuType'],
       },
@@ -159,6 +236,7 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
       dependencies: {
         resolve: ({ values }) => ({
           disabled: values.menuType === MENU_TYPE_MENU,
+          show: !isButton(values),
         }),
         triggerFields: ['menuType'],
       },
@@ -183,6 +261,10 @@ export function useFormSchema(parentTree: ParentNode[]): VbenFormSchema[] {
     {
       component: 'Switch',
       defaultValue: false,
+      dependencies: {
+        resolve: ({ values }) => ({ show: !isButton(values) }),
+        triggerFields: ['menuType'],
+      },
       fieldName: 'hidden',
       help: '隐藏只是不在侧边栏显示，有权限的账号仍然可以通过地址访问',
       label: '隐藏',
@@ -230,12 +312,11 @@ export function useColumns(): VxeTableGridColumns {
     },
     {
       field: 'menuType',
-      formatter: ({ cellValue }) =>
-        cellValue === MENU_TYPE_DIRECTORY ? '目录' : '菜单',
+      formatter: ({ cellValue }) => MENU_TYPE_NAMES[cellValue] ?? '—',
       title: '类型',
       width: 90,
     },
-    { field: 'routeName', minWidth: 160, title: '路由名称' },
+    { field: 'routeName', minWidth: 180, title: '路由名称 / 权限标识' },
     { field: 'routePath', minWidth: 180, title: '路由路径' },
     {
       field: 'status',

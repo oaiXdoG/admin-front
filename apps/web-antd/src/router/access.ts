@@ -8,8 +8,10 @@ import type { MenuRecord } from '#/api/types';
 
 import { generateAccessible } from '@vben/access';
 import { preferences } from '@vben/preferences';
+import { useAccessStore } from '@vben/stores';
 
 import { getAccessMenusApi } from '#/api';
+import { MENU_BUTTON } from '#/api/types';
 import { BasicLayout, IFrameView } from '#/layouts';
 import { useProjectStore } from '#/store';
 
@@ -33,7 +35,7 @@ function menuIcon(menu: MenuRecord) {
 function toRoutes(menus: MenuRecord[]): RouteRecordStringComponent[] {
   const byParent = new Map<number, MenuRecord[]>();
   for (const menu of menus) {
-    if (menu.status !== ENABLED) continue;
+    if (menu.status !== ENABLED || menu.menuType === MENU_BUTTON) continue;
     const parentId = menu.parentId || 0;
     const list = byParent.get(parentId) ?? [];
     list.push(menu);
@@ -47,6 +49,8 @@ function toRoutes(menus: MenuRecord[]): RouteRecordStringComponent[] {
         const registered = findRegisteredRoute(menu.routeName, menu.routePath);
         if (!registered) return [];
         const meta = {
+          // 页签只按路径区分，页面内用查询参数（如系统设置的 ?tab=）不会多开页签
+          fullPathKey: false,
           hideInMenu: menu.hidden,
           icon: menuIcon(menu),
           order: menu.sort,
@@ -92,8 +96,17 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
     ...options,
     fetchMenuListAsync: async () => {
       const projectStore = useProjectStore();
-      const menus = await getAccessMenusApi(projectStore.currentProjectId);
-      return toRoutes(menus ?? []);
+      const menus =
+        (await getAccessMenusApi(projectStore.currentProjectId)) ?? [];
+      // 按钮不生成路由，权限标识交给 vben 的权限码，页面用 useAccess().hasAccessByCodes 判断
+      useAccessStore().setAccessCodes(
+        menus
+          .filter(
+            (menu) => menu.menuType === MENU_BUTTON && menu.status === ENABLED,
+          )
+          .map((menu) => menu.routeName),
+      );
+      return toRoutes(menus);
     },
     forbiddenComponent,
     layoutMap,

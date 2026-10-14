@@ -5,6 +5,11 @@ import dayjs from 'dayjs';
 
 import { z } from '#/adapter/form';
 import { STATUS_DISABLED, STATUS_ENABLED } from '#/api/types';
+import {
+  optionalPasswordRule,
+  PASSWORD_HELP,
+  passwordRule,
+} from '#/utils/password';
 
 const usernameRule = z
   .string()
@@ -29,11 +34,9 @@ export function useCreateFormSchema(): VbenFormSchema[] {
       component: 'InputPassword',
       componentProps: { autocomplete: 'new-password', maxlength: 128 },
       fieldName: 'password',
+      help: PASSWORD_HELP,
       label: '密码',
-      rules: z
-        .string()
-        .min(1, { message: '请输入密码' })
-        .max(128, { message: '密码最长 128 位' }),
+      rules: passwordRule,
     },
     {
       component: 'Input',
@@ -70,15 +73,9 @@ export function useEditFormSchema(): VbenFormSchema[] {
       component: 'InputPassword',
       componentProps: { autocomplete: 'new-password', maxlength: 128 },
       fieldName: 'password',
-      help: '留空不修改；重置后该账号已登录的会话会失效',
+      help: `留空不修改；${PASSWORD_HELP}；重置后该账号已登录的会话会失效`,
       label: '重置密码',
-      rules: z
-        .string()
-        .max(128, { message: '密码最长 128 位' })
-        .refine((value) => !value || value.trim().length > 0, {
-          message: '密码不能仅包含空格',
-        })
-        .optional(),
+      rules: optionalPasswordRule,
     },
     remarkField(),
   ];

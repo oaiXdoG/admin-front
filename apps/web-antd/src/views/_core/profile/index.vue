@@ -22,6 +22,7 @@ import { useVbenForm, z } from '#/adapter/form';
 import { changePasswordApi, getProfileApi, updateProfileApi } from '#/api';
 import ImageUpload from '#/components/image-upload.vue';
 import { useAuthStore } from '#/store';
+import { PASSWORD_HELP, passwordRule } from '#/utils/password';
 
 defineOptions({ name: 'Profile' });
 
@@ -76,14 +77,9 @@ const [PasswordForm, passwordFormApi] = useVbenForm({
       component: 'InputPassword',
       componentProps: { autocomplete: 'new-password', maxlength: 128 },
       fieldName: 'newPassword',
+      help: PASSWORD_HELP,
       label: '新密码',
-      rules: z
-        .string()
-        .min(1, { message: '请输入新密码' })
-        .max(128, { message: '密码最长 128 位' })
-        .refine((value) => value.trim().length > 0, {
-          message: '密码不能仅包含空格',
-        }),
+      rules: passwordRule,
     },
     {
       component: 'InputPassword',
@@ -222,7 +218,9 @@ onMounted(async () => fill(await getProfileApi()));
                 class="mb-1"
               >
                 {{ item.projectName }}
-                <Tag class="ml-2" color="blue">{{ item.roleName }}</Tag>
+                <span class="ml-2">
+                  <Tag color="blue">{{ item.roleName }}</Tag>
+                </span>
               </div>
               <Empty
                 v-if="!profile.superAdmin && profile.projects.length === 0"

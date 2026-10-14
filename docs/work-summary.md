@@ -1,6 +1,6 @@
 # 工作总结与交接
 
-更新时间：2026-10-14。供新对话接续工作使用。
+更新时间：2026-10-14（数据中心、按钮权限、操作日志已完成，后端已部署到 gz 并联调通过）。供新对话接续工作使用。
 
 ## 一、三个仓库
 
@@ -53,6 +53,19 @@
 - 已完成第 1 步：gz 上部署 ClickHouse 25.8，容器 `clickhouse-log`，HTTP 端口 `38123`，内存上限 1.5GB，库 `logs_test`（内网）/ `logs_prod`（正式），账号 `logs_admin`、`writer_test/prod`、`reader_test/prod`。普通日志 90 天 TTL，`retention='permanent'`（支付类）永久保留。
 - 已完成第 2 步：log-sdk（`LogReporter.init(LogSdkConfig)` 启动时一次，`LogReporter.event(...).permanent().actor(..).put(..).send()`），写文件用独立 Logback `LoggerContext`（注意 Logback 1.5 需要 `setMDCAdapter`）；Vector 配置 `deploy/vector/vector.yaml`。已端到端验证：约 3 秒可查、断点续传不重复、坏行丢弃。
 - 已确定的决策：App Key 项目创建后不可修改；不需要消息队列和独立日志服务；admin 通过「系统设置 → 日志存储」配置 ClickHouse 连接（方案 B，密码加密存储，页面显示当前连接的库）。
+- 第 3、4 步（2026-10-14，已联调）：接口见 admin-background `docs/data-center.md`。
+  - 后端用 ClickHouse 官方 HTTP 接口 + 查询参数（`ClickHouseClient`），不引入 JDBC 驱动；密码用 `security.secret-key` AES-GCM 加密存 `system_setting` 的 `logStorage.*`。
+  - 查询模板存 PostgreSQL 表 `query_template`（一个模板对应一个事件，字段映射 JSON 原样保存）；查询强制当前项目 App Key、时间范围必填、条件全部参数化。
+  - 项目 App Key 编辑时只读，后端拒绝修改（`100040`）。
+  - 前端：系统设置新增「日志存储」卡片（测试连接、保存、修改保留期）；数据中心三个页面接入接口，去掉了本地 store。
+
+### 6. 按钮级权限（2026-10-14，已联调）
+- 菜单类型 3 为按钮，挂在菜单下，`route_name` 存权限标识 `页面路由名称:操作`；预置按钮为内置，见 `schema.sql`，清单见 admin-background `docs/permission-flow.md`。
+- 后端写接口改为校验按钮（`requirePlatformMenu` / `requireProjectMenu` 传权限标识），查看类接口仍校验页面。
+- 前端 `router/access.ts` 把按钮写入 vben `accessCodes`，各页面用 `useAccess().hasAccessByCodes` 控制按钮显示；角色「分配菜单」树改为父子独立勾选（勾选带上级和下级，取消带下级），以便只分配页面不分配按钮。
+- 操作日志：admin-background **不使用 log-sdk**，登录、退出和所有写操作直接写 PostgreSQL 表 `operation_log`（密码、图片脱敏），平台页面「系统管理 → 操作日志」（`manage_operation_log`，`/manage/operation-log`）查询。系统设置里的「日志存储」只用来读取外部业务服务写入 ClickHouse 的日志，与后台自己的日志无关。表结构见 `schema.sql`，说明见 admin-background `docs/data-center.md` 第四节。
+- 现有数据库已执行一次性升级脚本 `admin-background/target/upgrade-2026-10-14.sql`（建 `query_template`、插入 32 个按钮、已有页面的角色获得页面下全部按钮、新增操作日志菜单 10028）和 `target/upgrade-operation-log.sql`（建 `operation_log`）。
+- 联调（2026-10-14）：对 gz 上的后端跑了 56 项接口检查（日志存储、模板、各类查询条件、注入、分页、按钮权限、无权限账号、App Key、操作日志脱敏与筛选），全部通过；临时账号和测试数据已清理。脚本 `admin-background/target/it_test.py`（不提交）。
 
 ## 三、环境
 
@@ -62,8 +75,8 @@
 | PostgreSQL | gz `:28417`，库 `admin_background` |
 | Redis | gz `:41728` |
 | ClickHouse | gz `:38123`，账号密码在 `log-sdk/deploy/clickhouse/secrets.env`（不提交） |
-| 后端 | 本机 `:9050`，配置 `admin-background/conf/application.properties` |
-| 前端 | 本机 `pnpm dev`，`:5173`，`/api` 代理到 `API_PROXY_TARGET`（默认 `http://localhost:9050`） |
+| 后端 | **部署在 gz** `:9050`（systemd `admin-background`，见 admin-background `deploy/README.md`，发布用 `deploy/deploy.sh`）；服务器配置 `/opt/admin-background/conf/application.properties` |
+| 前端 | 本机 `pnpm dev`，`:5173`，`/api` 代理到 `API_PROXY_TARGET`；本机 `apps/web-antd/.env.development.local` 已设为 `http://111.230.143.165:9050`（不提交） |
 
 - 初始管理员：账号 `admin`，密码见 admin-background `target/server.log` 中 `SystemInitializationService` 的 WARN 日志；用户应已在个人设置中修改。
 - 数据库当前数据：项目「测试项目」（用户自建），其余为初始化数据。
@@ -76,11 +89,27 @@
 
 ## 四、待办
 
-1. **数据中心模块**（日志设计第 3～5 步）：
-   - admin-background：系统设置增加 ClickHouse 连接配置（地址、库、只读账号、管理账号，测试连接，密码加密）；事件定义和查询模板（PostgreSQL）；日志查询接口（`requireProjectMenu`，强制当前项目 App Key 过滤，时间范围必填，参数化 SQL，分页和超时）；修改保留期（`ALTER TABLE ... MODIFY TTL`）。
-   - 项目 App Key 改为不可修改（前端只读、后端拒绝）。
-   - admin-front：系统设置增加日志存储配置；数据中心原型（`views/data-center`）接入真实接口。
-   - admin-background 接入 log-sdk 上报自己的操作日志（替代原先讨论的 `operation_log` 表）。
-2. 下一阶段（已确认延后）：按钮级权限（菜单类型 3）。
+1. 在浏览器里走一遍新页面（日志存储、数据中心、操作日志、菜单管理里的按钮、角色分配菜单）。
+2. gz 的 `9050` 目前对公网开放，后端没有额外的访问控制，建议在腾讯云安全组里限制来源 IP。
+
+### 安全加固（2026-10-14，已部署 gz 并验证）
+- 会话 12 小时无操作才失效（每次请求续期）。
+- 密码至少 8 位且同时包含字母和数字（前后端一致，前端规则在 `src/utils/password.ts`）。旧密码不受影响。
+- 登录失败：同一账号 5 次或同一 IP 20 次，锁定 15 分钟（锁定期间密码正确也不能登录）。手动解锁：删除 Redis 键 `login:fail:account:<登录名小写>`。
+- 详见 admin-background `docs/permission-redesign.md` 第五节。
+
+### 数据备份（2026-10-14，已部署 gz 并验证）
+- 「系统管理 → 系统设置 → 数据备份」：每天定时备份（当前 03:00，保留 7 份）、立即备份、下载、删除；按钮权限 `manage_setting:backup`。
+- 后端 `pg_dump -Fc` 写到 gz `/data/admin-background/backup`，不接对象存储。说明见 admin-background `docs/backup.md`，恢复见 `deploy/README.md`。
+- zfoo 的定时方法必须以 `cron` 开头命名，否则启动失败。
+
+### 界面调整（2026-10-14）
+- 系统设置改为一张卡片分三个标签页（品牌信息 / 日志存储 / 数据备份），只渲染当前标签，当前标签记在 `?tab=`。
+- 所有页面路由加了 `meta.fullPathKey: false`（`router/access.ts`），页签只按路径区分，查询参数变化不会多开页签。
+- Tailwind 外边距类写在 Ant Design 组件上会被覆盖，统一改为外层 `div` 加间距（见 README「样式注意」）。
+
+### 已知坑（新增）
+- **Maven 默认用的是 JDK 25**（Homebrew `openjdk`），JDK 23 起不再自动运行 classpath 上的注解处理器，Lombok 失效、报几百个「找不到符号」。编译时指定 JDK 21：`JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home mvn compile`。
+- 本地调试：前端 `pnpm dev`（http://localhost:5173），`/api` 由 vite 代理到 gz 的后端。
 
 ClickHouse `38123` 端口的来源 IP 限制：用户决定不处理。
