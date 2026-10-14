@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `236110c` |
 | admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `4966263` |
-| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | **只有本地提交，尚无远程** | `3983f2b` |
+| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | `3983f2b` |
 
 约定：直接在 `main` 上开发，不建功能分支；只有用户明确要求时才提交、推送。admin-background 和 log-sdk 遵守各自 `docs/development-guidelines.md`（没有要求时不写测试、不随意编译；接口变化同步改文档）。用户偏好：优先用成熟方案（vben 内置组件、Logback 等），不重复造轮子。
 
@@ -44,7 +44,7 @@
 见 admin-background `docs/initialization.md`：执行 `src/main/resources/db/schema.sql` 后启动服务，`SystemInitializationService` 创建超级管理员角色；账号表为空时创建初始管理员 `admin`，密码取 `admin.init.password`，未配置则随机生成并打印到启动日志（WARN）。
 
 ### 5. 日志系统（进行中）
-设计：admin-background `docs/log-service-design.md`（第三版，**尚未提交**）。
+设计：admin-background `docs/log-service-design.md`（第三版）。
 
 ```
 业务服务（log-sdk）→ 本地文件 → Vector → ClickHouse ← admin 后台数据中心（待开发）
@@ -59,7 +59,7 @@
 | 项 | 值 |
 | --- | --- |
 | 服务器 gz | `111.230.143.165`（SSH 别名 `gz`，Debian 13，4 核 3.6GB，磁盘余约 64GB） |
-| PostgreSQL | gz `:28417`，库 `admin_background`；另有测试库 `admin_background_mtest`（迁移测试遗留，可删） |
+| PostgreSQL | gz `:28417`，库 `admin_background` |
 | Redis | gz `:41728` |
 | ClickHouse | gz `:38123`，账号密码在 `log-sdk/deploy/clickhouse/secrets.env`（不提交） |
 | 后端 | 本机 `:9050`，配置 `admin-background/conf/application.properties` |
@@ -81,8 +81,6 @@
    - 项目 App Key 改为不可修改（前端只读、后端拒绝）。
    - admin-front：系统设置增加日志存储配置；数据中心原型（`views/data-center`）接入真实接口。
    - admin-background 接入 log-sdk 上报自己的操作日志（替代原先讨论的 `operation_log` 表）。
-2. 提交并推送 admin-background 的 `docs/log-service-design.md`。
-3. 为 log-sdk 创建远程仓库并推送（需用户确认）。
-4. 建议在腾讯云安全组限制 `38123` 端口来源 IP。
-5. 可删除测试库 `admin_background_mtest`（需用户确认）。
-6. 下一阶段（已确认延后）：按钮级权限（菜单类型 3）。
+2. 下一阶段（已确认延后）：按钮级权限（菜单类型 3）。
+
+ClickHouse `38123` 端口的来源 IP 限制：用户决定不处理。
