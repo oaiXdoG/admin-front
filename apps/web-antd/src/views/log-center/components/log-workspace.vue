@@ -120,24 +120,46 @@ const summaryColumn = {
 
 /** 单个事件且有字段时按字段成列（列 key 为 f0、f1…），否则显示整段业务字段 */
 function columnsOf(fields: EventField[]): VxeGridPropTypes.Columns {
-  if (fields.length === 0) return [...baseColumns, summaryColumn];
+  const visible = fields
+    .map((field, index) => ({ field, index }))
+    .filter((item) => !item.field.hidden);
+  if (visible.length === 0) return [...baseColumns, summaryColumn];
   return [
     ...baseColumns,
-    ...fields.map((field, index) => ({
+    ...visible.map(({ field, index }) => ({
       field: `f${index}`,
       minWidth: 140,
+      slots: { default: 'field' },
       title: field.label || field.path,
     })),
   ];
 }
 
+/** 数组和对象在列表里只显示摘要，完整内容悬停或点开详情查看 */
+function cellText(value: unknown, type: EventField['type']) {
+  if (Array.isArray(value)) return `${value.length} 项`;
+  if (value !== null && typeof value === 'object') return `{…} ${Object.keys(value).length} 个字段`;
+  return displaySample(value, type);
+}
+
+function cellValue(row: object, field: string) {
+  return String((row as Record<string, unknown>)[field] ?? '');
+}
+
+/** 字段列 fN 对应的完整 JSON（只有数组和对象有） */
+function cellJson(row: object, field: string) {
+  return (row as Record<string, unknown>)[`j${field.slice(1)}`] as string | undefined;
+}
+
+/** 字段列 f0、f1… 存显示文本；数组和对象另存格式化的完整 JSON 在 j0、j1… 供悬停提示 */
 function toTableRow(row: LogRow, fields: EventField[]) {
   const result: Record<string, unknown> = { ...row };
   fields.forEach((field, index) => {
-    result[`f${index}`] = displaySample(
-      readDotPath(row.data, field.path),
-      field.type,
-    );
+    const value = readDotPath(row.data, field.path);
+    result[`f${index}`] = cellText(value, field.type);
+    if (value !== null && typeof value === 'object') {
+      result[`j${index}`] = JSON.stringify(value, null, 2);
+    }
   });
   return result;
 }
@@ -452,6 +474,19 @@ onMounted(async () => {
           </Button>
           <span v-else class="text-muted-foreground">—</span>
         </template>
+        <template #field="{ row, column }">
+          <Tooltip
+            v-if="cellJson(row, column.field)"
+            :overlay-inner-style="{ maxHeight: '360px', overflow: 'auto' }"
+            placement="topLeft"
+          >
+            <template #title>
+              <pre class="dc-json">{{ cellJson(row, column.field) }}</pre>
+            </template>
+            <span class="dc-complex">{{ cellValue(row, column.field) }}</span>
+          </Tooltip>
+          <template v-else>{{ cellValue(row, column.field) }}</template>
+        </template>
         <template #summary="{ row }">
           <span class="dc-summary">{{ summary(row) }}</span>
         </template>
@@ -461,6 +496,18 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.dc-complex {
+  color: hsl(var(--primary));
+  cursor: pointer;
+}
+
+.dc-json {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
 .dc-summary {
   display: block;
   overflow: hidden;

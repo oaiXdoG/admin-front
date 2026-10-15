@@ -20,6 +20,7 @@ import {
   Select,
   Space,
   Spin,
+  Switch,
   Tooltip,
 } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -227,6 +228,7 @@ async function save() {
       ...editing.value,
       fields: JSON.stringify(
         editFields.value.map((item) => ({
+          ...(item.hidden ? { hidden: true } : {}),
           label: item.label.trim(),
           path: item.path.trim(),
           type: item.type,
@@ -363,6 +365,12 @@ onMounted(load);
               <span>中文名</span>
               <span>类型</span>
               <span>样例值</span>
+              <span>
+                列表显示
+                <Tooltip title="关闭后不在日志查询的列表里单独成列，字段条件、详情和导出里仍有">
+                  <IconifyIcon class="inline size-3.5 align-[-2px]" icon="lucide:circle-help" />
+                </Tooltip>
+              </span>
               <span></span>
             </div>
             <div
@@ -383,6 +391,11 @@ onMounted(load);
                     : ''
                 }}
               </span>
+              <Switch
+                :checked="!field.hidden"
+                size="small"
+                @change="(checked) => (field.hidden = !checked)"
+              />
               <Tooltip title="移除">
                 <Button size="small" @click="editFields.splice(index, 1)">
                   <template #icon>
@@ -432,7 +445,7 @@ onMounted(load);
   grid-template-columns: minmax(160px, 1.2fr) minmax(140px, 1fr) 120px minmax(
       120px,
       1fr
-    ) 32px;
+    ) 80px 32px;
   gap: 12px;
   align-items: center;
   padding: 6px 12px;

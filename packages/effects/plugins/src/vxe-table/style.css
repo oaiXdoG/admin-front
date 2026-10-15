@@ -126,3 +126,34 @@
     opacity: 0.9;
   }
 }
+
+/* 表格滚动条始终显示：macOS 默认只在滚动时显示，用鼠标时找不到横向滚动条 */
+@supports not selector(::-webkit-scrollbar) {
+  .vxe-table--scroll-x-handle,
+  .vxe-table--scroll-y-handle {
+    scrollbar-color: hsl(var(--muted-foreground) / 45%) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+.vxe-table--scroll-x-handle::-webkit-scrollbar,
+.vxe-table--scroll-y-handle::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.vxe-table--scroll-x-handle::-webkit-scrollbar-track,
+.vxe-table--scroll-y-handle::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.vxe-table--scroll-x-handle::-webkit-scrollbar-thumb,
+.vxe-table--scroll-y-handle::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 45%);
+  border-radius: 4px;
+}
+
+.vxe-table--scroll-x-handle::-webkit-scrollbar-thumb:hover,
+.vxe-table--scroll-y-handle::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 70%);
+}

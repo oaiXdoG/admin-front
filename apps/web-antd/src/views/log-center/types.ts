@@ -70,6 +70,8 @@ export function suggestType(types: string[], sample: unknown): ValueType {
 
 /** 事件字典里的字段说明 */
 export interface EventField {
+  /** 不在日志查询的列表里单独成列（字段条件、详情和导出里仍有） */
+  hidden?: boolean;
   label: string;
   path: string;
   type: ValueType;
