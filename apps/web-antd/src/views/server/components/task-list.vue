@@ -64,6 +64,7 @@ defineExpose({ reload: load });
           {{ expanded.has(task.id) ? '收起输出' : '查看输出' }}
         </Button>
       </div>
+      <div v-if="task.remark" class="text-muted-foreground mt-1 break-all text-xs">{{ task.remark }}</div>
       <pre v-if="expanded.has(task.id)" class="server-output">{{ task.output }}</pre>
     </div>
     <Empty v-if="!loading && list.length === 0" :image="Empty.PRESENTED_IMAGE_SIMPLE" description="还没有执行记录" />

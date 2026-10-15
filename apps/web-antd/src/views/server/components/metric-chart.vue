@@ -3,7 +3,7 @@ import type { EchartsUIType, ECOption } from '@vben/plugins/echarts';
 
 import { onMounted, ref, watch } from 'vue';
 
-import { connectCharts, EchartsUI, useEcharts } from '@vben/plugins/echarts';
+import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
 import dayjs from 'dayjs';
 
@@ -11,7 +11,6 @@ import dayjs from 'dayjs';
 const props = defineProps<{
   compact?: boolean;
   end: number;
-  group?: string;
   height: number;
   name: string;
   points: [number, null | number][];
@@ -72,11 +71,7 @@ function chartOption(): ECOption {
 }
 
 async function render() {
-  const chart = await renderEcharts(chartOption());
-  if (chart && props.group) {
-    chart.group = props.group;
-    connectCharts(props.group);
-  }
+  await renderEcharts(chartOption());
 }
 
 onMounted(render);

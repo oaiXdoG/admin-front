@@ -2,6 +2,7 @@
 import type {
   JvmTemplateRecord,
   ProcessRecord,
+  ProcessTypeRecord,
   ProcessWrite,
   ServerRecord,
 } from '#/api/types';
@@ -28,6 +29,7 @@ const props = defineProps<{
   record: null | ProcessRecord;
   servers: ServerRecord[];
   templates: JvmTemplateRecord[];
+  types: ProcessTypeRecord[];
 }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 
@@ -50,38 +52,27 @@ const [ProcessForm, formApi] = useVbenForm({
   },
   schema: [
     {
-      component: 'Select',
-      componentProps: () => ({
-        disabled: props.record !== null,
-        options: props.servers.map((item) => ({
-          label: item.groupName ? `${item.name}（${item.groupName}）` : item.name,
-          value: item.id,
-        })),
-        placeholder: '选择服务器',
-      }),
-      fieldName: 'serverId',
-      label: '服务器',
-      rules: 'selectRequired',
-    },
-    {
       component: 'Input',
       componentProps: () => ({
         disabled: props.record !== null,
         maxlength: 48,
-        placeholder: '例如 game-1',
+        placeholder: '小写字母、数字和 -，例如 game-1，创建后不能修改',
       }),
       fieldName: 'name',
-      help: '同一服务器内唯一，创建后不能修改；systemd 服务名为 adm-进程名',
       label: '进程名',
       rules: z
         .string()
         .regex(/^[a-z][a-z0-9-]{0,47}$/, { message: '小写字母开头，小写字母、数字和 -' }),
     },
     {
-      component: 'Input',
-      componentProps: { maxlength: 128, placeholder: '可空，例如 一区游戏服' },
-      fieldName: 'remark',
-      label: '备注',
+      component: 'Select',
+      componentProps: () => ({
+        allowClear: true,
+        options: props.types.map((item) => ({ label: item.name, value: item.id })),
+        placeholder: '不分类',
+      }),
+      fieldName: 'typeId',
+      label: '类型',
     },
     {
       component: 'Input',
@@ -92,10 +83,9 @@ const [ProcessForm, formApi] = useVbenForm({
     },
     {
       component: 'Input',
-      componentProps: { placeholder: 'java' },
+      componentProps: { placeholder: 'java（按 PATH 查找），或完整路径' },
       defaultValue: 'java',
       fieldName: 'javaPath',
-      help: '默认按 PATH 查找；不同进程可以用不同 JDK，例如 /usr/lib/jvm/java-21/bin/java',
       label: 'Java',
       rules: z.string().trim().regex(FILE, { message: '不能有空格和引号' }),
     },
@@ -104,20 +94,18 @@ const [ProcessForm, formApi] = useVbenForm({
       componentProps: () => ({
         allowClear: true,
         options: props.templates.map((item) => ({ label: item.name, value: item.id })),
-        placeholder: '不使用模板',
+        placeholder: '不使用模板（多个进程共用的参数，排在 JVM 参数前面）',
       }),
       fieldName: 'templateId',
-      help: '模板参数在前，下面的 JVM 参数在后（同名参数后者生效）',
       label: 'JVM 模板',
     },
     {
       component: 'Textarea',
       componentProps: {
         autoSize: { maxRows: 8, minRows: 3 },
-        placeholder: '-Xms2g\n-Xmx2g\n-XX:+UseG1GC',
+        placeholder: '一行一个，例如\n-Xms2g\n-Xmx2g\n-Dserver.zone-id=2（覆盖配置文件里的值）',
       },
       fieldName: 'jvmOptions',
-      help: '一行一个，也可以写在一行里',
       label: 'JVM 参数',
     },
     {
@@ -142,19 +130,17 @@ const [ProcessForm, formApi] = useVbenForm({
         triggerFields: ['launchMode'],
       },
       fieldName: 'jar',
-      help: '相对工作目录或绝对路径',
       label: '启动 jar',
       rules: z.string().trim().regex(FILE, { message: '不能有空格和引号' }),
     },
     {
       component: 'Input',
-      componentProps: { placeholder: '例如 conf:lib/*:loginServer-1.0-SNAPSHOT.jar' },
+      componentProps: { placeholder: '冒号分隔，相对工作目录，例如 conf:lib/*:lib/extra/*' },
       dependencies: {
         if: (values) => values.launchMode === 'classpath',
         triggerFields: ['launchMode'],
       },
       fieldName: 'classpath',
-      help: '冒号分隔，相对工作目录；lib/* 不用加引号，由 java 自己展开',
       label: '类路径',
       rules: z.string().trim().regex(FILE, { message: '不能有空格和引号' }),
     },
@@ -180,9 +166,8 @@ const [ProcessForm, formApi] = useVbenForm({
     },
     {
       component: 'Textarea',
-      componentProps: { autoSize: { maxRows: 6, minRows: 2 }, placeholder: 'TZ=Asia/Shanghai' },
+      componentProps: { autoSize: { maxRows: 6, minRows: 2 }, placeholder: '可空，每行一个 KEY=VALUE，例如 TZ=Asia/Shanghai' },
       fieldName: 'env',
-      help: '每行一个 KEY=VALUE，可空',
       label: '环境变量',
     },
     {
@@ -193,11 +178,29 @@ const [ProcessForm, formApi] = useVbenForm({
     },
     {
       component: 'InputNumber',
-      componentProps: { class: 'w-full', max: 65_535, min: 0, precision: 0 },
-      defaultValue: 0,
+      componentProps: { class: 'w-full', max: 65_535, min: 0, placeholder: '可空；填了则启动后确认这个端口能连接才算成功', precision: 0 },
       fieldName: 'port',
-      help: '启动后确认这个端口可以连接才算成功，0 表示不检查',
       label: '检查端口',
+    },
+    {
+      component: 'Select',
+      componentProps: () => ({
+        disabled: props.record !== null,
+        options: props.servers.map((item) => ({
+          label: item.groupName ? `${item.name}（${item.groupName}）` : item.name,
+          value: item.id,
+        })),
+        placeholder: '选择服务器',
+      }),
+      fieldName: 'serverId',
+      label: '服务器',
+      rules: 'selectRequired',
+    },
+    {
+      component: 'Input',
+      componentProps: { maxlength: 128, placeholder: '可空，例如 一区游戏服' },
+      fieldName: 'remark',
+      label: '备注',
     },
   ],
   showDefaultActions: false,
@@ -282,6 +285,7 @@ async function save() {
     remark: values.remark?.trim() ?? '',
     runUser: values.runUser?.trim() ?? '',
     templateId: values.templateId ?? null,
+    typeId: values.typeId ?? null,
     workDir: values.workDir.trim(),
   };
   saving.value = true;
@@ -319,12 +323,13 @@ watch(
         javaPath: record.javaPath,
         jvmOptions: record.jvmOptions,
         name: record.name,
-        port: record.port,
+        port: record.port || undefined,
         programArgs: record.programArgs,
         remark: record.remark,
         runUser: record.runUser,
         serverId: record.serverId,
         templateId: record.templateId ?? undefined,
+        typeId: record.typeId ?? undefined,
         workDir: record.workDir,
       });
     }

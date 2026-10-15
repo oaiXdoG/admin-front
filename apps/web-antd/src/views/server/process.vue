@@ -1,6 +1,11 @@
 <script lang="ts" setup>
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { JvmTemplateRecord, ProcessRecord, ServerRecord } from '#/api/types';
+import type {
+  JvmTemplateRecord,
+  ProcessRecord,
+  ProcessTypeRecord,
+  ServerRecord,
+} from '#/api/types';
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -10,21 +15,25 @@ import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import { Button, Drawer, message, Modal, Select, Space, Tag, Tooltip } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   getJvmTemplatesApi,
   getProcessesApi,
+  getProcessTypesApi,
   getServersApi,
   operateProcessesApi,
   removeProcessApi,
 } from '#/api';
 import { useProjectStore } from '#/store';
 
+import DeployModal from './components/deploy-modal.vue';
 import ProcessDetail from './components/process-detail.vue';
 import ProcessForm from './components/process-form.vue';
 import TaskList from './components/task-list.vue';
 import TemplateModal from './components/template-modal.vue';
+import TypeModal from './components/type-modal.vue';
 import {
   actionNames,
   formatBytes,
@@ -32,12 +41,13 @@ import {
   formatPercent,
   processStateTag,
   serverStatusTags,
-  taskStatusTags,
 } from './format';
 
 type Action = 'restart' | 'start' | 'stop';
 
+/** 有未完成的指令时每秒刷新，及时看到结果；否则每 5 秒 */
 const REFRESH_MS = 5000;
+const BUSY_REFRESH_MS = 1000;
 
 const projectStore = useProjectStore();
 const router = useRouter();
@@ -48,22 +58,32 @@ const canOperate = computed(() => hasAccessByCodes(['server_process:operate']));
 const processes = ref<ProcessRecord[]>([]);
 const servers = ref<ServerRecord[]>([]);
 const templates = ref<JvmTemplateRecord[]>([]);
+const types = ref<ProcessTypeRecord[]>([]);
 const serverFilter = ref<number>();
+const typeFilter = ref<number>();
 const selected = ref<number[]>([]);
 const formOpen = ref(false);
 const editing = ref<null | ProcessRecord>(null);
 const templateOpen = ref(false);
+const typeOpen = ref(false);
+const deploying = ref<null | ProcessRecord>(null);
 const tasksOpen = ref(false);
 const detailId = ref<null | number>(null);
-let timer: ReturnType<typeof setInterval> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
+let unmounted = false;
 
 const serverOptions = computed(() =>
   servers.value.map((item) => ({ label: item.name, value: item.id })),
 );
+const typeOptions = computed(() =>
+  types.value.map((item) => ({ label: item.name, value: item.id })),
+);
 const visible = computed(() =>
-  serverFilter.value === undefined
-    ? processes.value
-    : processes.value.filter((item) => item.serverId === serverFilter.value),
+  processes.value.filter(
+    (item) =>
+      (serverFilter.value === undefined || item.serverId === serverFilter.value) &&
+      (typeFilter.value === undefined || item.typeId === typeFilter.value),
+  ),
 );
 const detail = computed(() => processes.value.find((item) => item.id === detailId.value) ?? null);
 
@@ -78,17 +98,24 @@ const [Grid, gridApi] = useVbenVxeGrid({
       { type: 'checkbox', width: 44 },
       {
         align: 'left',
-        field: 'serverName',
-        minWidth: 130,
-        slots: { default: 'server' },
-        title: '服务器',
-      },
-      {
-        align: 'left',
         field: 'name',
         minWidth: 180,
         slots: { default: 'name' },
         title: '进程',
+      },
+      {
+        field: 'typeName',
+        align: 'left',
+        formatter: ({ cellValue }) => cellValue || '—',
+        minWidth: 100,
+        title: '类型',
+      },
+      {
+        align: 'left',
+        field: 'serverName',
+        minWidth: 130,
+        slots: { default: 'server' },
+        title: '服务器',
       },
       { field: 'state', minWidth: 200, slots: { default: 'state' }, title: '状态' },
       { field: 'pid', formatter: ({ row }) => row.metric?.pid || '—', title: 'PID', minWidth: 90 },
@@ -111,11 +138,18 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       { field: 'port', formatter: ({ cellValue }) => cellValue || '—', title: '端口', minWidth: 80 },
       {
+        align: 'left',
+        field: 'deployedAt',
+        minWidth: 170,
+        slots: { default: 'deployed' },
+        title: '最近部署',
+      },
+      {
         field: 'operation',
         fixed: 'right',
         slots: { default: 'action' },
         title: '操作',
-        width: 320,
+        width: 370,
       },
     ],
     data: [],
@@ -144,15 +178,18 @@ async function load() {
       message.info(`${item.name}：${actionNames[previous.action]}指令已结束，结果见执行记录`);
     }
   }
+  scheduleRefresh();
 }
 
 async function loadOptions() {
-  const [serverResult, templateResult] = await Promise.all([
+  const [serverResult, templateResult, typeResult] = await Promise.all([
     getServersApi(projectId.value),
     getJvmTemplatesApi(projectId.value),
+    getProcessTypesApi(projectId.value),
   ]);
   servers.value = serverResult.list;
   templates.value = templateResult.list;
+  types.value = typeResult.list;
 }
 
 function onFilterChange() {
@@ -170,6 +207,11 @@ function openForm(record: null | ProcessRecord) {
 
 async function onSaved() {
   formOpen.value = false;
+  await Promise.all([load(), loadOptions()]);
+}
+
+async function onDeployed() {
+  deploying.value = null;
   await load();
 }
 
@@ -181,7 +223,7 @@ function operate(records: ProcessRecord[], action: Action) {
   const names = records.map((item) => item.name).join('、');
   const run = async () => {
     await operateProcessesApi(projectId.value, records.map((item) => item.id), action);
-    message.success(`已下发${actionNames[action]}指令，几秒后开始执行`);
+    message.success(`已下发${actionNames[action]}指令`);
     gridApi.grid?.clearCheckboxRow();
     selected.value = [];
     await load();
@@ -231,16 +273,37 @@ function openMonitor(record: ProcessRecord) {
   });
 }
 
+const taskStateTexts: Record<string, string> = {
+  deploy: '部署中',
+  remove: '删除中',
+  restart: '重启中',
+  start: '启动中',
+  stop: '停止中',
+};
+
+/** 只显示一个状态：服务器离线 > 指令执行中 > 进程状态（配置改过未重启时显示待重启） */
 function stateTag(record: ProcessRecord) {
   if (record.serverStatus !== 'online') return serverStatusTags[record.serverStatus];
+  if (record.task) return { color: 'processing', text: taskStateTexts[record.task.action] ?? '执行中' };
+  if (record.pendingRestart) return { color: 'warning', text: '运行中（待重启）' };
   return processStateTag(record.state);
+}
+
+/** 每次加载后重新安排下一次刷新（发起指令后立即加载，随即切到每秒刷新） */
+function scheduleRefresh() {
+  clearTimeout(timer);
+  if (unmounted) return;
+  const busy = processes.value.some((item) => item.task !== null);
+  timer = setTimeout(() => void load().catch(() => scheduleRefresh()), busy ? BUSY_REFRESH_MS : REFRESH_MS);
 }
 
 onMounted(async () => {
   await Promise.all([load(), loadOptions()]);
-  timer = setInterval(() => void load().catch(() => undefined), REFRESH_MS);
 });
-onBeforeUnmount(() => clearInterval(timer));
+onBeforeUnmount(() => {
+  unmounted = true;
+  clearTimeout(timer);
+});
 </script>
 
 <template>
@@ -258,6 +321,17 @@ onBeforeUnmount(() => clearInterval(timer));
             @change="onFilterChange"
           />
         </span>
+        <span class="ml-2">
+          <Select
+            v-model:value="typeFilter"
+            :options="typeOptions"
+            allow-clear
+            class="w-[140px]"
+            placeholder="全部类型"
+            size="small"
+            @change="onFilterChange"
+          />
+        </span>
       </template>
       <template #toolbar-tools>
         <Space>
@@ -268,6 +342,7 @@ onBeforeUnmount(() => clearInterval(timer));
             <Button danger @click="operateSelected('stop')">停止</Button>
           </template>
           <Button @click="tasksOpen = true">执行记录</Button>
+          <Button @click="typeOpen = true">进程类型</Button>
           <Button @click="templateOpen = true">JVM 模板</Button>
           <Button
             v-if="hasAccessByCodes(['server_process:create'])"
@@ -292,15 +367,18 @@ onBeforeUnmount(() => clearInterval(timer));
         </div>
       </template>
       <template #state="{ row }">
-        <Space :size="4">
+        <Tooltip :title="!row.task && row.pendingRestart ? '配置已修改，重启后生效' : undefined">
           <Tag :color="stateTag(row).color">{{ stateTag(row).text }}</Tag>
-          <Tooltip v-if="row.pendingRestart" title="配置已修改，重启后生效">
-            <Tag color="warning">待重启</Tag>
-          </Tooltip>
-          <Tag v-if="row.task" :color="taskStatusTags[row.task.status as keyof typeof taskStatusTags].color">
-            {{ actionNames[row.task.action as keyof typeof actionNames] }}{{ taskStatusTags[row.task.status as keyof typeof taskStatusTags].text }}
-          </Tag>
-        </Space>
+        </Tooltip>
+      </template>
+      <template #deployed="{ row }">
+        <template v-if="row.deployedAt">
+          <div>{{ dayjs(row.deployedAt).format('YYYY-MM-DD HH:mm') }}</div>
+          <div v-if="row.deployRemark" class="text-muted-foreground break-all text-xs">
+            {{ row.deployRemark }}
+          </div>
+        </template>
+        <span v-else>—</span>
       </template>
       <template #action="{ row }">
         <template v-if="canOperate">
@@ -322,6 +400,15 @@ onBeforeUnmount(() => clearInterval(timer));
             </Button>
           </template>
         </template>
+        <Button
+          v-if="hasAccessByCodes(['server_process:deploy'])"
+          :disabled="busy(row)"
+          size="small"
+          type="link"
+          @click="deploying = row"
+        >
+          部署
+        </Button>
         <Button size="small" type="link" @click="openMonitor(row)">监控</Button>
         <Button size="small" type="link" @click="detailId = row.id">详情</Button>
         <Button
@@ -351,6 +438,7 @@ onBeforeUnmount(() => clearInterval(timer));
       :record="editing"
       :servers="servers"
       :templates="templates"
+      :types="types"
       @close="formOpen = false"
       @saved="onSaved"
     />
@@ -360,6 +448,19 @@ onBeforeUnmount(() => clearInterval(timer));
       :templates="templates"
       @changed="loadOptions(); load()"
       @close="templateOpen = false"
+    />
+    <TypeModal
+      :open="typeOpen"
+      :project-id="projectId"
+      :types="types"
+      @changed="loadOptions(); load()"
+      @close="typeOpen = false"
+    />
+    <DeployModal
+      :process="deploying"
+      :project-id="projectId"
+      @close="deploying = null"
+      @deployed="onDeployed"
     />
     <ProcessDetail :process="detail" :project-id="projectId" @close="detailId = null" />
     <Drawer :open="tasksOpen" :width="760" destroy-on-close title="执行记录" @close="tasksOpen = false">

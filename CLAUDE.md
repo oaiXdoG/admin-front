@@ -4,4 +4,4 @@
 
 - 直接在 `main` 上开发；只有用户明确要求时才提交、推送。
 - 前端优先使用 vben 内置能力（`useVbenVxeGrid`、`useVbenForm`、`useVbenModal`）。
-- 后端 `/Users/oaixdog/Projecet/admin-background` 遵守其 `docs/development-guidelines.md`。
+- 后端 `/Users/oaixdog/Project/danmu/admin-background` 遵守其 `docs/development-guidelines.md`。

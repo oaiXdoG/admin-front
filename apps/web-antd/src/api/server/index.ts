@@ -1,7 +1,9 @@
 import type {
   JvmTemplateRecord,
   MetricPoint,
+  ProcessFileResult,
   ProcessRecord,
+  ProcessTypeRecord,
   ProcessWrite,
   ServerRecord,
   ServerTaskRecord,
@@ -99,6 +101,98 @@ export async function operateProcessesApi(
     action,
     processIds,
     projectId,
+  });
+}
+
+/** 部署包分块上传：第一块 uploadId 为 null，之后带上返回的 uploadId；data 为该块的 base64 */
+export async function uploadDeployChunkApi(
+  projectId: number,
+  processId: number,
+  uploadId: null | string,
+  index: number,
+  total: number,
+  data: string,
+  onProgress?: (ratio: number) => void,
+) {
+  return requestClient.post<{ uploadId: string }>(
+    '/server/process/deploy/upload',
+    { data, index, processId, projectId, total, uploadId },
+    {
+      onUploadProgress: (event) => onProgress?.(event.total ? event.loaded / event.total : 0),
+      // 每块约 8MB，上行慢时 30 秒的默认超时不够
+      timeout: 300_000,
+    },
+  );
+}
+
+/** 所有块上传完成后生成部署指令（解压覆盖到工作目录后重启进程） */
+export async function deployProcessApi(
+  projectId: number,
+  processId: number,
+  uploadId: string,
+  fileName: string,
+  remark: string,
+) {
+  return requestClient.post<{ taskId: number }>('/server/process/deploy', {
+    fileName,
+    processId,
+    projectId,
+    remark,
+    uploadId,
+  });
+}
+
+/** 发起文件操作，由 Agent 下一次心跳领取执行；path 相对工作目录，空为工作目录本身 */
+export async function requestProcessFileApi(
+  projectId: number,
+  processId: number,
+  op: 'delete' | 'list' | 'read' | 'write',
+  path: string,
+  content?: string,
+) {
+  return requestClient.post<{ opId: number | string }>('/server/process/file/request', {
+    content,
+    op,
+    path,
+    processId,
+    projectId,
+  });
+}
+
+export async function getProcessFileResultApi<T = unknown>(
+  projectId: number,
+  opId: number | string,
+) {
+  return requestClient.post<ProcessFileResult<T>>('/server/process/file/result', {
+    opId,
+    projectId,
+  });
+}
+
+export async function getProcessTypesApi(projectId: number) {
+  return requestClient.post<{ list: ProcessTypeRecord[] }>(
+    '/server/process-type/list',
+    { projectId },
+  );
+}
+
+/** typeId 为 null 表示新建 */
+export async function saveProcessTypeApi(
+  projectId: number,
+  typeId: null | number,
+  name: string,
+) {
+  return requestClient.post<ProcessTypeRecord>('/server/process-type/save', {
+    name,
+    projectId,
+    typeId,
+  });
+}
+
+export async function removeProcessTypeApi(projectId: number, typeId: number) {
+  return requestClient.post<null>('/server/process-type/remove', {
+    projectId,
+    typeId,
   });
 }
 

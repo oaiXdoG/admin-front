@@ -54,6 +54,7 @@ export function processStateTag(state?: string) {
 }
 
 export const actionNames: Record<ServerTaskRecord['action'], string> = {
+  deploy: '部署',
   remove: '删除',
   restart: '重启',
   start: '启动',

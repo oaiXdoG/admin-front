@@ -18,6 +18,19 @@ const { hasAccessByCodes } = useAccess();
 const editing = ref<null | { id: null | number; name: string; options: string }>(null);
 const saving = ref(false);
 
+/** zfoo 官方部署脚本（zfoo/deploy.sh）使用的 JVM 参数，堆大小（-Xms / -Xmx）按进程填在进程自己的 JVM 参数里 */
+const ZFOO_OPTIONS = [
+  '-XX:+UseG1GC',
+  '-XX:+AlwaysPreTouch',
+  '-XX:AutoBoxCacheMax=10000',
+  '-XX:+UseStringDeduplication',
+  '-XX:+HeapDumpOnOutOfMemoryError',
+  '-XX:HeapDumpPath=logs',
+  '-Djdk.attach.allowAttachSelf=true',
+  '-Duser.timezone=Asia/Shanghai',
+  '-Dfile.encoding=UTF-8',
+].join('\n');
+
 function edit(template: JvmTemplateRecord | null) {
   editing.value = template
     ? { id: template.id, name: template.name, options: template.options }
@@ -63,7 +76,7 @@ function remove(template: JvmTemplateRecord) {
   <Modal :footer="null" :open="open" :width="720" title="JVM 参数模板" @cancel="emit('close'); editing = null">
     <div class="mb-4">
       <Alert
-        message="把多个进程共用的参数（GC、日志、编码等）放在模板里，进程只填自己不同的部分（例如内存大小）。修改模板后，用到它的进程会显示「待重启」。"
+        message="把多个进程共用的参数（GC、编码、时区等）放在模板里，在进程的「JVM 模板」里选择；进程自己的 JVM 参数只填不同的部分（例如 -Xms / -Xmx、-Dserver.zone-id）。启动时模板参数在前、进程参数在后。修改模板后，用到它的进程会显示「待重启」。"
         show-icon
         type="info"
       />
@@ -97,8 +110,11 @@ function remove(template: JvmTemplateRecord) {
         <pre class="server-options">{{ template.options || '（空）' }}</pre>
       </div>
       <Empty v-if="templates.length === 0" :image="Empty.PRESENTED_IMAGE_SIMPLE" description="还没有模板" />
-      <div v-if="hasAccessByCodes(['server_process:update'])" class="mt-4">
-        <Button block type="dashed" @click="edit(null)">新建模板</Button>
+      <div v-if="hasAccessByCodes(['server_process:update'])" class="mt-4 flex gap-2">
+        <Button class="flex-1" type="dashed" @click="edit(null)">新建模板</Button>
+        <Button class="flex-1" type="dashed" @click="editing = { id: null, name: 'zfoo 通用（Java 21）', options: ZFOO_OPTIONS }">
+          用 zfoo 推荐参数新建
+        </Button>
       </div>
     </template>
   </Modal>

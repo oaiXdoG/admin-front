@@ -355,7 +355,6 @@ onBeforeUnmount(() => clearInterval(timer));
                     :start="timeWindow[0]"
                     :unit="metric.unit"
                     compact
-                    group="server-monitor"
                   />
                 </div>
                 <div v-for="kind in (['max', 'min', 'avg'] as const)" :key="kind" class="monitor-stat">

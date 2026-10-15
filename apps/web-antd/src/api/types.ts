@@ -449,8 +449,10 @@ export interface ServerTaskRecord {
   serverId: number;
   processId: number;
   processName: string;
-  action: 'remove' | 'restart' | 'start' | 'stop';
+  action: 'deploy' | 'remove' | 'restart' | 'start' | 'stop';
   status: 'failed' | 'running' | 'success' | 'timeout' | 'waiting';
+  /** 部署记录为「文件名（大小）· 备注」，其他为空 */
+  remark: string;
   output: string;
   operator: string;
   createdAt: number;
@@ -460,6 +462,8 @@ export interface ServerTaskRecord {
 /** 托管进程表单 */
 export interface ProcessWrite {
   remark: string;
+  /** 进程类型，可空 */
+  typeId: null | number;
   workDir: string;
   javaPath: string;
   templateId: null | number;
@@ -482,6 +486,10 @@ export interface ProcessRecord extends ProcessWrite {
   serverStatus: ServerStatus;
   name: string;
   templateName: string;
+  typeName: string;
+  /** 最近一次成功部署的时间和执行记录备注，没有部署过为 null / 空 */
+  deployedAt: null | number;
+  deployRemark: string;
   configVersion: number;
   updatedAt: number;
   /** systemd 状态：active、inactive、failed、activating、deactivating；服务器离线为 unknown */
@@ -497,6 +505,28 @@ export interface JvmTemplateRecord {
   options: string;
   processCount: number;
   updatedAt: number;
+}
+
+export interface ProcessTypeRecord {
+  id: number;
+  name: string;
+  processCount: number;
+}
+
+/** 文件管理：list 返回的一项，modifiedAt 为毫秒 */
+export interface ProcessFileEntry {
+  name: string;
+  dir: boolean;
+  size: number;
+  modifiedAt: number;
+}
+
+/** 文件操作结果：pending 等待 Agent 领取执行，timeout 为 60 秒没有结果 */
+export interface ProcessFileResult<T = unknown> {
+  status: 'done' | 'pending' | 'timeout';
+  success: boolean;
+  message: string;
+  data: T;
 }
 
 /** 监控曲线上的一个点（该粒度内的平均值）：主机指标或进程指标，进程的 memoryUsed 为常驻内存 */

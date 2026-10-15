@@ -1,14 +1,17 @@
 # 工作总结与交接
 
-更新时间：2026-10-15（v0.1.0 之后完成服务器管理：Agent、服务器列表、进程管理、监控详情；gz 上的登录服、游戏服已改为托管；前后端都已部署到 gz，前端 http://111.230.143.165/）。供新对话接续工作使用。
+更新时间：2026-10-16（五个仓库移到 `~/Project/danmu`；登录服 / 游戏服接入 ZooKeeper 服务发现、游戏服改 MongoDB 并按区服；后台进程管理新增进程类型、部署、文件管理、长轮询指令；都已部署到 gz，前端 http://111.230.143.165/）。供新对话接续工作使用。
 
-## 一、三个仓库
+## 一、仓库（都在 `~/Project/danmu` 下，GitHub 私有仓库，SSH 推送）
 
 | 仓库 | 路径 | 说明 | 远程 | 最新提交 |
 | --- | --- | --- | --- | --- |
-| admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `0fc4b3b`（服务器管理；之后只有本文档的更新） |
-| admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `5416935`（服务器管理） |
-| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | 标签 `v0.1.0` |
+| admin-front | `/Users/oaixdog/Project/danmu/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `0fc4b3b`（服务器管理；之后只有本文档的更新） |
+| admin-background | `/Users/oaixdog/Project/danmu/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `5416935`（服务器管理） |
+| log-sdk | `/Users/oaixdog/Project/danmu/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | 标签 `v0.1.0` |
+| danmu-login | `/Users/oaixdog/Project/danmu/danmu-login` | 弹幕游戏登录服（与玩法无关，一个应用部署一套），zfoo HTTP 9030 + PostgreSQL | GitHub `oaiXdoG/danmu-login` | — |
+| daoshinvgui | `/Users/oaixdog/Project/danmu/daoshinvgui` | 当前开发的游戏服（logic），zfoo TCP 9020 + MongoDB，一个区一个进程 | GitHub `oaiXdoG/daoshinvgui` | — |
+| danmu-callback | 未开发 | 弹幕回调服（整个应用共用） | — | — |
 
 约定：直接在 `main` 上开发，不建功能分支；只有用户明确要求时才提交、推送。admin-background 和 log-sdk 遵守各自 `docs/development-guidelines.md`（没有要求时不写测试、不随意编译；接口变化同步改文档）。用户偏好：优先用成熟方案（vben 内置组件、Logback 等），不重复造轮子。
 
@@ -166,6 +169,20 @@
 - 补充（2026-10-15）：菜单改名为「服务器列表 / 进程管理」；进程支持两种启动方式：`-jar` 或 `-cp 类路径 + 主类`（`classpath`、`main_class` 两列，gz 已执行 `.ops/upgrade-server-cp.sql`）；Agent 0.1.1 启动后等待端口最长 180 秒。
 - gz 上的登录服、游戏服已从 start.sh 切换为托管：进程 `login`（/usr/local/games/login，端口 9030）和 `daoshinvgui`（/usr/local/games/daoshinvgui，端口 9020），systemd 服务 `adm-login`、`adm-daoshinvgui`，开机自启、崩溃自动拉起。原 start.sh / stop.sh / restart.sh 备份为 `*.bak`，新脚本改为调用 systemctl。演示进程 demo 已删除。业务进程的标准输出现在进 journald（原来是 /dev/null），看日志用 `journalctl -u adm-login`。
 - 监控详情页（2026-10-15）：历史指标存平台 ClickHouse 库（logs_test）的 `server_metric` 表（每 5 秒一行，保留 7 天，`async_insert`），Redis 只留最新值供列表页。页面 `/server/monitor`（隐藏菜单 `server_monitor`，已执行 `.ops/upgrade-server-monitor.sql`）：实时 / 近 24 小时 / 近 7 天 / 选择日期，粒度 10 秒 / 1 分钟 / 5 分钟 / 1 小时，每指标一行（曲线 + Max/Min/Avg + 放大），导出 CSV。新增指标：主机每秒收发包数、TCP 连接数，进程 TCP 连接数（Agent 0.1.3）。接口 `/api/server/metric/query` 取代原来的两个 trend 接口；原来抽屉里的趋势图和滑块已去掉，进程「详情」抽屉保留状态和执行记录。
+
+### 弹幕游戏服务架构（2026-10-15～16）
+- 服务注册与发现：ZooKeeper（gz Docker `zookeeper`，只监听 127.0.0.1:2181），规则见 danmu-login `docs/service-discovery.md`。节点 `/danmu/<appKey>/logic/<区ID>`（游戏服）、`/danmu/<appKey>/login/<内网地址:端口>`、`/danmu/<appKey>/callback/<实例ID>`，临时节点每 10 秒刷新。appKey 用管理后台项目的 App Key（当前「测试项目」）。
+- 登录服：账号表 `login_user` 加 `platform`（douyin / local）；按区从 ZooKeeper 取游戏服（当前固定 1 区），不在线或维护中返回「服务器维护中」；票据带 `zoneId`；不再使用 `game_server` 表。
+- 游戏服：一个区一个进程、一个 MongoDB 库（`daoshinvgui_zone<区>`，gz Docker `mongodb`，只监听 127.0.0.1:27017）；zfoo ORM EntityCache（每 30 秒批量写回，停服全部写回）；主播、玩家 ID = 区 ID × 10,000,000 + 区内序号（计数器在 `uuid` 集合）；票据区服不一致拒绝登录。说明见 daoshinvgui `docs/区服与注册.md`。
+- 两个服务的配置都可以用 `-Dkey=value` 覆盖（多区时写在后台进程的 JVM 参数里）；游戏服不再打包 start/stop 脚本。
+- gz 数据：PostgreSQL `pg-open`（28417，本机调试和 gz 上的登录服都用它）的 `deep_sea_war` 只剩登录服两张表；`pg-test` 已不再被使用。
+
+### 服务器管理第二期（2026-10-15～16，已部署 gz）
+- 进程类型（`server_process_type`，可自定义并分配）、部署（zip 按 6MB 分块上传 → Agent 下载校验 → 解压增量覆盖工作目录 → 重启；外层单个目录自动去掉，忽略 macOS 附加文件）、文件管理（进程详情 →「文件」：浏览、编辑文本、删除）。按钮 `server_process:deploy`、`server_process:file`，gz 已执行 `.ops/upgrade-deploy.sql`。
+- Agent 0.3.2：长轮询 `/api/agent/wait` 领取指令（页面发起后 1 秒内执行），心跳仍每 5 秒上报指标；不同进程的指令并行；启动失败（含 systemd 自动重启）立即返回并停止服务。gz 的 Agent `baseUrl` 改为 `http://127.0.0.1`（与后台同机，避免绕公网），所以服务器列表里 gz 的公网 IP 显示 127.0.0.1。
+- 页面：进程列表一个状态标签；表单字段顺序调整、去掉问号提示；JVM 模板可「用 zfoo 推荐参数新建」；监控图表不再联动提示框。
+- 发布包：只打改动部分即可（增量覆盖），依赖不变时游戏服包约 100KB；从本机上传到 gz 实测只有 100～200KB/s。
+- gz 上 login、daoshinvgui 已用新版本部署并运行；工作目录里旧的 start/stop/restart 脚本可以删除。
 
 ### 已知坑（新增）
 - **Maven 默认用的是 JDK 25**（Homebrew `openjdk`），JDK 23 起不再自动运行 classpath 上的注解处理器，Lombok 失效、报几百个「找不到符号」。编译时指定 JDK 21：`JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home mvn compile`。
