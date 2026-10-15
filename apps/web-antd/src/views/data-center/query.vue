@@ -125,11 +125,6 @@ const [ParamForm, formApi] = useVbenForm({
 });
 
 const [Grid, gridApi] = useVbenVxeGrid({
-  gridEvents: {
-    cellClick: ({ rowIndex }: { rowIndex: number }) => {
-      detail.value = rawRows[rowIndex] ?? null;
-    },
-  },
   gridOptions: {
     columns: [],
     height: 'auto',
@@ -167,6 +162,14 @@ function toTableRow(row: Record<string, unknown>) {
 }
 
 /** 切换模板：重建参数表单和结果列，清空结果 */
+/** 结果列加上固定在右侧的「详情」，只有点它才打开详情，点表格其他地方可以正常选中、复制文字 */
+function resultColumns(fields: Parameters<typeof mappedColumns>[0]) {
+  return [
+    ...mappedColumns(fields),
+    { field: 'operation', fixed: 'right' as const, slots: { default: 'detail' }, title: '操作', width: 72 },
+  ];
+}
+
 async function onTemplateChange() {
   submitted.value = undefined;
   rawRows = [];
@@ -174,7 +177,7 @@ async function onTemplateChange() {
   formApi.setState({ schema: (current?.params ?? []).map(paramSchema) });
   await formApi.reset();
   gridApi.setGridOptions({
-    columns: mappedColumns(current?.fields ?? []),
+    columns: resultColumns(current?.fields ?? []),
     data: [],
   });
 }
@@ -289,6 +292,11 @@ onMounted(async () => {
                 <IconifyIcon class="size-4" icon="lucide:download" />
               </template>
               导出
+            </Button>
+          </template>
+          <template #detail="{ rowIndex }">
+            <Button size="small" type="link" @click="detail = rawRows[rowIndex] ?? null">
+              详情
             </Button>
           </template>
           <template #empty>

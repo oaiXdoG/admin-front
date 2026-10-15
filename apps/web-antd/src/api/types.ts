@@ -410,7 +410,10 @@ export interface ServerRecord {
   remark: string;
   status: ServerStatus;
   hostname: string;
+  /** 后台看到的访问来源（出口公网 IP） */
   ip: string;
+  /** Agent 上报的本机内网 IP，多个用逗号分隔 */
+  privateIp: string;
   os: string;
   cpuCores: number;
   memoryTotal: number;

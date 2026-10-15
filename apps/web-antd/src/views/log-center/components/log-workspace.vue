@@ -110,6 +110,14 @@ const baseColumns: VxeGridPropTypes.Columns = [
   { field: 'actor', slots: { default: 'actor' }, title: '用户', width: 140 },
   { field: 'server', title: '服务器', width: 120 },
 ];
+/** 只有点「详情」才打开详情，点表格其他地方可以正常选中、复制文字 */
+const detailColumn = {
+  field: 'operation',
+  fixed: 'right' as const,
+  slots: { default: 'detail' },
+  title: '操作',
+  width: 72,
+};
 const summaryColumn = {
   align: 'left' as const,
   field: 'data',
@@ -123,7 +131,7 @@ function columnsOf(fields: EventField[]): VxeGridPropTypes.Columns {
   const visible = fields
     .map((field, index) => ({ field, index }))
     .filter((item) => !item.field.hidden);
-  if (visible.length === 0) return [...baseColumns, summaryColumn];
+  if (visible.length === 0) return [...baseColumns, summaryColumn, detailColumn];
   return [
     ...baseColumns,
     ...visible.map(({ field, index }) => ({
@@ -132,6 +140,7 @@ function columnsOf(fields: EventField[]): VxeGridPropTypes.Columns {
       slots: { default: 'field' },
       title: field.label || field.path,
     })),
+    detailColumn,
   ];
 }
 
@@ -213,7 +222,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         (item) => item.path === undefined || paths.has(item.path),
       );
     },
-    showCollapseButton: false,
     wrapperClass: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4',
     schema: [
       {
@@ -278,17 +286,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         label: '关键字',
       },
     ],
-  },
-  gridEvents: {
-    cellClick: ({
-      column,
-      row,
-    }: {
-      column: { field?: string };
-      row: LogRow;
-    }) => {
-      if (column.field !== 'actor') detail.value = row;
-    },
   },
   gridOptions: {
     columns: columnsOf([]),
@@ -487,6 +484,9 @@ onMounted(async () => {
           </Tooltip>
           <template v-else>{{ cellValue(row, column.field) }}</template>
         </template>
+        <template #detail="{ row }">
+          <Button size="small" type="link" @click="detail = row">详情</Button>
+        </template>
         <template #summary="{ row }">
           <span class="dc-summary">{{ summary(row) }}</span>
         </template>
@@ -498,7 +498,7 @@ onMounted(async () => {
 <style scoped>
 .dc-complex {
   color: hsl(var(--primary));
-  cursor: pointer;
+  cursor: help;
 }
 
 .dc-json {
@@ -516,6 +516,5 @@ onMounted(async () => {
   color: hsl(var(--muted-foreground));
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
 }
 </style>

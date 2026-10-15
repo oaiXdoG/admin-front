@@ -55,6 +55,13 @@ const saving = ref(false);
 const install = ref<null | { command: string; name: string }>(null);
 let timer: ReturnType<typeof setInterval> | undefined;
 
+/** 已有分组，新增或编辑服务器时可以直接选 */
+const groupOptions = computed(() =>
+  [...new Set(servers.value.map((item) => item.groupName).filter(Boolean))]
+    .sort()
+    .map((value) => ({ value })),
+);
+
 const [ServerForm, formApi] = useVbenForm({
   schema: [
     {
@@ -65,10 +72,17 @@ const [ServerForm, formApi] = useVbenForm({
       rules: z.string().trim().min(1, { message: '请输入名称' }),
     },
     {
-      component: 'Input',
-      componentProps: { maxlength: 64, placeholder: '可空，例如 华东一区' },
+      component: 'AutoComplete',
+      componentProps: () => ({
+        allowClear: true,
+        class: 'w-full',
+        filterOption: (input: string, option: { value: string }) => option.value.toLowerCase().includes(input.toLowerCase()),
+        maxlength: 64,
+        options: groupOptions.value,
+        placeholder: '选择已有分组或输入新分组，可空',
+      }),
       fieldName: 'groupName',
-      help: '用于分组显示和批量操作',
+      help: '用于分组显示和批量操作；下拉里是已有的分组，也可以直接输入新分组',
       label: '分组',
     },
     {
@@ -244,8 +258,13 @@ onBeforeUnmount(() => clearInterval(timer));
           <span class="text-muted-foreground">还没有安装 Agent</span>
         </template>
         <div v-else class="leading-relaxed">
-          <div>{{ row.hostname }}<span class="text-muted-foreground ml-2">{{ row.ip }}</span></div>
-          <div class="text-muted-foreground text-xs">{{ row.cpuCores }} 核 · {{ formatBytes(row.memoryTotal) }}</div>
+          <div>
+            {{ row.hostname }}
+            <span class="text-muted-foreground text-xs"> · {{ row.cpuCores }} 核 · {{ formatBytes(row.memoryTotal) }}</span>
+          </div>
+          <div class="text-muted-foreground text-xs">
+            公网 {{ row.ip || '—' }}<template v-if="row.privateIp"> · 内网 {{ row.privateIp.replaceAll(',', ', ') }}</template>
+          </div>
         </div>
       </template>
       <template #cpu="{ row }">

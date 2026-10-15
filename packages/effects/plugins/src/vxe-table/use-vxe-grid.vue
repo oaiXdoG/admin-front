@@ -144,7 +144,8 @@ const [Form, formApi] = useTableForm({
       class: 'w-full',
     },
   },
-  showCollapseButton: true,
+  // 本项目的搜索条件都不多，默认不显示「展开 / 收起」，条件多的页面单独打开
+  showCollapseButton: false,
   submitButtonOptions: {
     content: computed(() => $t('common.search')),
   },

@@ -295,7 +295,7 @@ onBeforeUnmount(() => clearInterval(timer));
             <Tag :color="serverStatusTags[server.status].color">{{ serverStatusTags[server.status].text }}</Tag>
           </span>
           <span v-if="server" class="text-muted-foreground text-xs">
-            {{ server.hostname }} · {{ server.ip }} · {{ server.cpuCores }} 核 · {{ formatBytes(server.memoryTotal) }}
+            {{ server.hostname }} · 公网 {{ server.ip }}{{ server.privateIp ? ` · 内网 ${server.privateIp.replaceAll(',', ', ')}` : '' }} · {{ server.cpuCores }} 核 · {{ formatBytes(server.memoryTotal) }}
           </span>
         </div>
         <div class="flex flex-wrap items-center gap-3">
