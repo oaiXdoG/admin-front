@@ -1,14 +1,14 @@
 # 工作总结与交接
 
-更新时间：2026-10-14（数据中心、按钮权限、操作日志已完成，后端已部署到 gz 并联调通过）。供新对话接续工作使用。
+更新时间：2026-10-15（日志中心 / 数据中心拆分、事件字典、单日志源、多事件条件查询已完成；前后端都已部署到 gz，前端 http://111.230.143.165/）。供新对话接续工作使用。
 
 ## 一、三个仓库
 
 | 仓库 | 路径 | 说明 | 远程 | 最新提交 |
 | --- | --- | --- | --- | --- |
-| admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `d0b0a6b`（功能提交，之后只有本文档的更新） |
-| admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `7f3f69b` |
-| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | `3983f2b` |
+| admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `2468b75`（功能提交，之后只有本文档的更新） |
+| admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `5c206b5` |
+| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | `51e8e70` |
 
 约定：直接在 `main` 上开发，不建功能分支；只有用户明确要求时才提交、推送。admin-background 和 log-sdk 遵守各自 `docs/development-guidelines.md`（没有要求时不写测试、不随意编译；接口变化同步改文档）。用户偏好：优先用成熟方案（vben 内置组件、Logback 等），不重复造轮子。
 
