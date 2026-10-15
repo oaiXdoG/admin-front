@@ -382,3 +382,133 @@ export interface DataQueryResult {
   total: number;
   list: Record<string, unknown>[];
 }
+
+/** 服务器管理：主机指标（cpu 为百分比，内存和磁盘为字节，网络为字节/秒，uptime 为秒），time 为采集时间 */
+export interface HostMetric {
+  cpu: number;
+  load1: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  diskUsed: number;
+  diskTotal: number;
+  netIn: number;
+  netOut: number;
+  packetsIn?: number;
+  packetsOut?: number;
+  tcp?: number;
+  uptime: number;
+  time: number;
+}
+
+/** pending 未接入、online 在线、offline 离线 */
+export type ServerStatus = 'offline' | 'online' | 'pending';
+
+export interface ServerRecord {
+  id: number;
+  name: string;
+  groupName: string;
+  remark: string;
+  status: ServerStatus;
+  hostname: string;
+  ip: string;
+  os: string;
+  cpuCores: number;
+  memoryTotal: number;
+  agentVersion: string;
+  registeredAt: number;
+  lastSeenAt: null | number;
+  metric: HostMetric | null;
+  processCount: number;
+}
+
+export interface ServerWrite {
+  name: string;
+  groupName: string;
+  remark: string;
+}
+
+/** 进程指标：cpu 为占整机的百分比，memory 为常驻内存字节 */
+export interface ProcessMetric {
+  state: string;
+  pid: number;
+  cpu?: number;
+  memory?: number;
+  threads?: number;
+  tcp?: number;
+  startedAt?: number;
+  configVersion: number;
+  time: number;
+}
+
+/** waiting 等待、running 执行中、success 成功、failed 失败、timeout 超时 */
+export interface ServerTaskRecord {
+  id: number;
+  serverId: number;
+  processId: number;
+  processName: string;
+  action: 'remove' | 'restart' | 'start' | 'stop';
+  status: 'failed' | 'running' | 'success' | 'timeout' | 'waiting';
+  output: string;
+  operator: string;
+  createdAt: number;
+  finishedAt: number;
+}
+
+/** 托管进程表单 */
+export interface ProcessWrite {
+  remark: string;
+  workDir: string;
+  javaPath: string;
+  templateId: null | number;
+  jvmOptions: string;
+  /** -jar 方式的 jar；-cp 方式为空 */
+  jar: string;
+  /** -cp 方式：填了主类时用 -cp classpath mainClass 启动 */
+  classpath: string;
+  mainClass: string;
+  programArgs: string;
+  env: string;
+  runUser: string;
+  port: number;
+}
+
+export interface ProcessRecord extends ProcessWrite {
+  id: number;
+  serverId: number;
+  serverName: string;
+  serverStatus: ServerStatus;
+  name: string;
+  templateName: string;
+  configVersion: number;
+  updatedAt: number;
+  /** systemd 状态：active、inactive、failed、activating、deactivating；服务器离线为 unknown */
+  state: string;
+  pendingRestart: boolean;
+  metric: null | ProcessMetric;
+  task: null | ServerTaskRecord;
+}
+
+export interface JvmTemplateRecord {
+  id: number;
+  name: string;
+  options: string;
+  processCount: number;
+  updatedAt: number;
+}
+
+/** 监控曲线上的一个点（该粒度内的平均值）：主机指标或进程指标，进程的 memoryUsed 为常驻内存 */
+export interface MetricPoint {
+  time: number;
+  cpu: number;
+  load1: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  diskUsed: number;
+  diskTotal: number;
+  netIn: number;
+  netOut: number;
+  packetsIn: number;
+  packetsOut: number;
+  tcp: number;
+  threads: number;
+}

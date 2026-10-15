@@ -108,16 +108,22 @@ export const registeredRoutes: RegisteredRoute[] = [
   },
   { name: 'server', path: '/server', title: '服务器管理', directory: true },
   {
-    name: 'server_monitor',
-    path: '/server/monitor',
-    title: '性能监控',
-    component: '/server/monitor',
+    name: 'server_host',
+    path: '/server/host',
+    title: '服务器列表',
+    component: '/server/host',
   },
   {
-    name: 'server_operations',
-    path: '/server/operations',
-    title: '运维操作',
-    component: '/server/operations',
+    name: 'server_process',
+    path: '/server/process',
+    title: '进程管理',
+    component: '/server/process',
+  },
+  {
+    name: 'server_monitor',
+    path: '/server/monitor',
+    title: '监控详情',
+    component: '/server/monitor',
   },
 ];
 

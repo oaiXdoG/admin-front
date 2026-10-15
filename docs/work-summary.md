@@ -155,6 +155,18 @@
 - 日志查询的字段条件不再要求只选一个事件：多选时可选字段是各事件字段的合集，没有该字段的事件不命中。
 - 场景数据 `.ops/qa_room.py`（log_id 以 QAROOM 开头），8 个场景见 `docs/log-query-room-cases.md`，全部通过；前端已发布到 gz。
 
+### 服务器管理第一期（2026-10-15，已部署 gz 并走通）
+- 方案：每台业务服务器装一个 Agent（admin-background `agent/`，Java 17+ 单 jar，OSHI 采指标），每 5 秒 HTTP 心跳（上报指标、领取指令），不开端口、后台不保存 SSH 凭证。托管模式：每个进程一个 systemd 服务 `adm-<进程名>`，服务文件由后台生成（JVM 参数模板 + 进程参数），Agent 内容不同时写入。
+- 页面：服务器管理 → 服务器（`server_host`：新增后生成一次性安装命令、在线状态、主机指标、24 小时趋势）、进程（`server_process`：新增 / 编辑（可从 start.sh 命令导入）、启动 / 停止 / 重启（批量）、待重启提示、监控、执行记录、JVM 模板）。原来的演示页（性能监控、运维操作）已删除。
+- 签名：`HMAC-SHA256(密钥, 时间戳 + "\n" + SHA-256(请求体))`。zfoo 在进入控制器前已释放请求体，所以请求体摘要在 `Application.parseAgentRequest` 里算好写进内部请求头。
+- 监控存 Redis：最新值 60 秒、每分钟一个点保留 24 小时；超过 30 秒没心跳为离线。
+- gz 上的数据：已执行 `.ops/upgrade-server.sql`（新表、菜单改名、按钮）；服务器配置加了 `agent.base-url`；nginx `/agent/` 提供安装脚本和 jar（`/opt/admin-agent-dist`）；gz 本机已装 Agent，登记为服务器「gz」（分组 测试），有一个演示进程 demo（`/data/demo-game/demo.jar`，端口 19100，已停止）。
+- 联调：`.ops/it_server.py` 40 项全部通过（接入、令牌一次性、签名、参数校验、服务文件、启动 + 端口检查、JVM 参数与环境变量生效、待重启、重复指令拦截、kill -9 自动拉起、停止、删除、离线 / 恢复、操作日志）；浏览器走通两页。
+- 后续阶段：版本更新（上传 jar、回滚）、在线改配置、分组批量滚动、热更新（zfoo hotswap + 配置表重载，需要业务进程引入小 SDK）。
+- 补充（2026-10-15）：菜单改名为「服务器列表 / 进程管理」；进程支持两种启动方式：`-jar` 或 `-cp 类路径 + 主类`（`classpath`、`main_class` 两列，gz 已执行 `.ops/upgrade-server-cp.sql`）；Agent 0.1.1 启动后等待端口最长 180 秒。
+- gz 上的登录服、游戏服已从 start.sh 切换为托管：进程 `login`（/usr/local/games/login，端口 9030）和 `daoshinvgui`（/usr/local/games/daoshinvgui，端口 9020），systemd 服务 `adm-login`、`adm-daoshinvgui`，开机自启、崩溃自动拉起。原 start.sh / stop.sh / restart.sh 备份为 `*.bak`，新脚本改为调用 systemctl。演示进程 demo 已删除。业务进程的标准输出现在进 journald（原来是 /dev/null），看日志用 `journalctl -u adm-login`。
+- 监控详情页（2026-10-15）：历史指标存平台 ClickHouse 库（logs_test）的 `server_metric` 表（每 5 秒一行，保留 7 天，`async_insert`），Redis 只留最新值供列表页。页面 `/server/monitor`（隐藏菜单 `server_monitor`，已执行 `.ops/upgrade-server-monitor.sql`）：实时 / 近 24 小时 / 近 7 天 / 选择日期，粒度 10 秒 / 1 分钟 / 5 分钟 / 1 小时，每指标一行（曲线 + Max/Min/Avg + 放大），导出 CSV。新增指标：主机每秒收发包数、TCP 连接数，进程 TCP 连接数（Agent 0.1.3）。接口 `/api/server/metric/query` 取代原来的两个 trend 接口；原来抽屉里的趋势图和滑块已去掉，进程「详情」抽屉保留状态和执行记录。
+
 ### 已知坑（新增）
 - **Maven 默认用的是 JDK 25**（Homebrew `openjdk`），JDK 23 起不再自动运行 classpath 上的注解处理器，Lombok 失效、报几百个「找不到符号」。编译时指定 JDK 21：`JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home mvn compile`。
 - 本地调试：前端 `pnpm dev`（http://localhost:5173），`/api` 由 vite 代理到 gz 的后端。

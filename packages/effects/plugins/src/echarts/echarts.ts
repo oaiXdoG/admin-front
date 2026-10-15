@@ -1,6 +1,7 @@
 import { BarChart, LineChart, PieChart, RadarChart } from 'echarts/charts';
 import {
   DatasetComponent,
+  DataZoomComponent,
   GraphicComponent,
   GridComponent,
   LegendComponent,
@@ -24,6 +25,7 @@ echarts.use([
   TooltipComponent,
   GridComponent,
   DatasetComponent,
+  DataZoomComponent,
   TransformComponent,
   BarChart,
   LineChart,
@@ -36,5 +38,8 @@ echarts.use([
   GraphicComponent,
 ]);
 export type { ECOption } from './types';
+
+/** 同一分组的图表联动（缩放、提示框同步） */
+export const connectCharts = (group: string) => echarts.connect(group);
 
 export default echarts;
