@@ -18,7 +18,7 @@ const favicon = ref('');
 const saving = ref(false);
 
 const [SettingForm, formApi] = useVbenForm({
-  commonConfig: { disabled: !canEdit, labelWidth: 120 },
+  commonConfig: { disabled: !canEdit },
   schema: [
     {
       component: 'Input',

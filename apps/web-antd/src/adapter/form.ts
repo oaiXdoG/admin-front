@@ -53,9 +53,11 @@ function useVbenForm<
     TSubmitValues
   >,
 ) {
-  return useForm<TFormValues, ComponentType, ComponentPropsMap, TSubmitValues>(
-    options,
-  );
+  // 标签默认 120px：必填星号 + 四个字 + 帮助图标也不会折行；个别表单可在 commonConfig 里覆盖
+  return useForm<TFormValues, ComponentType, ComponentPropsMap, TSubmitValues>({
+    ...options,
+    commonConfig: { labelWidth: 120, ...options.commonConfig },
+  });
 }
 
 export { initSetupVbenForm, useVbenForm, z };

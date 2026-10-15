@@ -38,7 +38,7 @@ const starting = ref(false);
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 const [BackupForm, formApi] = useVbenForm({
-  commonConfig: { disabled: !canEdit.value, labelWidth: 120 },
+  commonConfig: { disabled: !canEdit.value },
   schema: [
     {
       component: 'Switch',

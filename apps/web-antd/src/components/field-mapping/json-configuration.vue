@@ -2,7 +2,7 @@
 import type { TreeProps } from 'ant-design-vue';
 import type { Rule } from 'ant-design-vue/es/form';
 
-import type { JsonConfig, JsonMapping, SampleTree } from '../types';
+import type { JsonConfig, JsonMapping, SampleTree } from './types';
 
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 
@@ -25,7 +25,7 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 
-import { displaySample, inspectSample, useRowKey, valueTypes } from '../types';
+import { displaySample, inspectSample, useRowKey, valueTypes } from './types';
 
 defineProps<{ index: number }>();
 

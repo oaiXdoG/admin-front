@@ -64,8 +64,8 @@
 - 后端写接口改为校验按钮（`requirePlatformMenu` / `requireProjectMenu` 传权限标识），查看类接口仍校验页面。
 - 前端 `router/access.ts` 把按钮写入 vben `accessCodes`，各页面用 `useAccess().hasAccessByCodes` 控制按钮显示；角色「分配菜单」树改为父子独立勾选（勾选带上级和下级，取消带下级），以便只分配页面不分配按钮。
 - 操作日志：admin-background **不使用 log-sdk**，登录、退出和所有写操作直接写 PostgreSQL 表 `operation_log`（密码、图片脱敏），平台页面「系统管理 → 操作日志」（`manage_operation_log`，`/manage/operation-log`）查询。系统设置里的「日志存储」只用来读取外部业务服务写入 ClickHouse 的日志，与后台自己的日志无关。表结构见 `schema.sql`，说明见 admin-background `docs/data-center.md` 第四节。
-- 现有数据库已执行一次性升级脚本 `admin-background/target/upgrade-2026-10-14.sql`（建 `query_template`、插入 32 个按钮、已有页面的角色获得页面下全部按钮、新增操作日志菜单 10028）和 `target/upgrade-operation-log.sql`（建 `operation_log`）。
-- 联调（2026-10-14）：对 gz 上的后端跑了 56 项接口检查（日志存储、模板、各类查询条件、注入、分页、按钮权限、无权限账号、App Key、操作日志脱敏与筛选），全部通过；临时账号和测试数据已清理。脚本 `admin-background/target/it_test.py`（不提交）。
+- 现有数据库已执行一次性升级脚本 `admin-background/.ops/upgrade-2026-10-14.sql`（建 `query_template`、插入 32 个按钮、已有页面的角色获得页面下全部按钮、新增操作日志菜单 10028）、`.ops/upgrade-operation-log.sql`（建 `operation_log`）、`.ops/upgrade-backup.sql`、`.ops/upgrade-data-center.sql`、`.ops/upgrade-split-center.sql`（日志中心/数据中心拆分）。`.ops/` 是本地忽略目录（`.git/info/exclude`），放一次性脚本，不提交。
+- 联调（2026-10-14）：对 gz 上的后端跑了 56 项接口检查（日志存储、模板、各类查询条件、注入、分页、按钮权限、无权限账号、App Key、操作日志脱敏与筛选），全部通过；临时账号和测试数据已清理。脚本在 `admin-background/.ops/`（不提交）。
 
 ## 三、环境
 
@@ -76,7 +76,7 @@
 | Redis | gz `:41728` |
 | ClickHouse | gz `:38123`，账号密码在 `log-sdk/deploy/clickhouse/secrets.env`（不提交） |
 | 后端 | **部署在 gz** `:9050`（systemd `admin-background`，见 admin-background `deploy/README.md`，发布用 `deploy/deploy.sh`）；服务器配置 `/opt/admin-background/conf/application.properties` |
-| 前端 | 本机 `pnpm dev`，`:5173`，`/api` 代理到 `API_PROXY_TARGET`；本机 `apps/web-antd/.env.development.local` 已设为 `http://111.230.143.165:9050`（不提交） |
+| 前端 | **部署在 gz** `http://111.230.143.165/`（nginx 80 端口默认站点，`/api` 代理到 `:9050`，发布用 `deploy/deploy.sh`，见 `deploy/README.md`）；本机调试 `pnpm dev`，`:5173`，`/api` 代理到 `API_PROXY_TARGET`，本机 `apps/web-antd/.env.development.local` 已设为 `http://111.230.143.165:9050`（不提交） |
 
 - 初始管理员：账号 `admin`，密码见 admin-background `target/server.log` 中 `SystemInitializationService` 的 WARN 日志；用户应已在个人设置中修改。
 - 数据库当前数据：项目「测试项目」（用户自建），其余为初始化数据。
@@ -104,9 +104,50 @@
 - zfoo 的定时方法必须以 `cron` 开头命名，否则启动失败。
 
 ### 界面调整（2026-10-14）
-- 系统设置改为一张卡片分三个标签页（品牌信息 / 日志存储 / 数据备份），只渲染当前标签，当前标签记在 `?tab=`。
+- 系统设置改为一张卡片分三个标签页（品牌信息 / 日志保留期 / 数据备份），只渲染当前标签，当前标签记在 `?tab=`。
 - 所有页面路由加了 `meta.fullPathKey: false`（`router/access.ts`），页签只按路径区分，查询参数变化不会多开页签。
 - Tailwind 外边距类写在 Ant Design 组件上会被覆盖，统一改为外层 `div` 加间距（见 README「样式注意」）。
+
+### 数据中心重构（2026-10-14，已部署 gz 并在浏览器走通）
+- 三个页面：日志查询（不需要模板，按事件/玩家/服务器/关键字，点玩家 ID 看轨迹）、数据查询（按模板）、事件与模板（自动列出事件，建模板时从数据读取字段、类型和样例）。
+- 详情抽屉（完整 data、跳转玩家轨迹）、导出 CSV（最多 5 万行，按钮 `data_query:export`、`data_log:export`）。模板去掉了「分类」。
+- 统计视图（按天/字段分组的计数、求和、去重人数 + 图表）确定留到下一轮。
+- 接口见 admin-background `docs/data-center.md`。
+
+### 日志中心 / 数据中心拆分（2026-10-14，已部署 gz 并在浏览器走通）
+- **日志中心**（`log_*`，`views/log-center`，接口 `/api/log/*`）：查询 log-sdk 写入 ClickHouse 的日志（后来改为事件字典 + 按项目日志源，见下节）。
+- **数据中心**（`data_*`，`views/data-center`，接口 `/api/data/*`）：查询业务服务器自身的数据。
+  - 数据源 `data_source`：每个项目配置业务服务器接口地址和签名密钥（加密保存），可测试连接。
+  - 查询模板 `data_template`：选数据源和查询名，定义参数和结果字段，可从业务服务器的查询清单自动带出。
+  - 数据查询：按参数生成表单，结果按字段成列，详情、导出（最多 5 万行）。
+  - 只做「接口」类型数据源，不直连业务数据库；业务服务器按 admin-background `docs/data-center.md` 的规范实现 `/admin/queries`、`/admin/query`（HMAC-SHA256 签名）。
+- 联调用的模拟业务服务器在 admin-background `.ops/mock_business.py`（本地忽略目录，不提交）。
+- 统计视图（日志按天/字段分组统计）仍留到下一轮。
+
+### 日志中心：事件字典 + 按项目日志源（2026-10-14，已部署 gz 并在浏览器走通）
+- 去掉「日志模板」和「模板查询」，改为**事件字典**：表 `log_event`（项目 + 事件名唯一），给事件配中文名、说明和字段说明（`{path,label,type}`），只影响展示；不配置也能查，字段从最近日志自动读取。
+- 合并为一个查询页：只选一个事件时结果按字段成列，并可按字段加条件（`data.<路径>`，且/或）；没选单个事件时条件栏显示提示。
+- 菜单：日志查询 `log_query`（导出 `log_query:export`）、事件管理 `log_event`（`:update`、`:remove`）、日志源 `log_source`（`:update`）。
+- **日志源每个项目一个**：表 `log_source`（`project_id` 唯一），「日志源」页面是一张表单（地址、库名、只读账号、密码，测试连接 / 保存，按钮 `log_source:update`）；查询仍强制本项目 App Key。地址做了 SSRF 检查（拒绝链路本地/组播/通配地址，不跟随跳转）。最初做成了多个日志源，讨论后改为一个：集群对外只有一个入口，正式/测试是两套后台，多个日志源只会让用户不知道该查哪个。
+- 平台「系统设置 → 日志保留期」只保留管理账号和保留期（`logStorage.url/database/adminUser/adminPassword`），不再有只读账号。
+- 现有库执行了 `.ops/upgrade-log-source.sql`：建 `log_source`、`log_event`，把原平台只读账号复制成项目 1 的「默认」日志源，删除 `log_template` 和旧菜单，插入新菜单按钮。
+- 现有库又执行了 `.ops/upgrade-single-source.sql`（每个项目只留一个日志源，去掉 name/sort/remark，删除新建/删除按钮 50007、50009）。
+- 联调：`.ops/it_logsource.py` 30 项、`.ops/it_single.py` 全部通过；浏览器走通事件说明编辑、查看日志、字段条件过滤。测试数据和临时账号已清理。
+- 接口见 admin-background `docs/log-center.md`，权限见 `docs/permission-flow.md`。
+- 条件查询修正：字段不存在/为 null 时不再被当成 0、空文本或 false（原来「金额 < 10」「不等于」会多命中）；不带时区的日期文本按 Asia/Shanghai 解析（ClickHouse 服务器是 UTC，原来差 8 小时）；数字字段接受数字文本。验证数据 `.ops/qa_log.py`（log_id 以 QA 开头，保留在 logs_test 供手工验证，`python3 .ops/qa_log.py clean` 清理），36 个场景见 `docs/log-query-test-cases.md`。
+
+### 前端部署到 gz（2026-10-14）
+- `http://111.230.143.165/`：gz 已有的 nginx，新增站点 `admin-front` 作为 80 端口默认站点（替换了自带欢迎页的 `default` 链接），静态文件在 `/opt/admin-front/current`（按版本目录切换，保留 5 个）。
+- 构建开启预压缩 gzip（`.env.production` `VITE_COMPRESS=gzip`），nginx `gzip_static`；带哈希的文件缓存一年，`index.html` 不缓存。
+- 本机测得：RTT 约 55ms，带宽约 1.2～1.5 MB/s；最大的 vxe-table 包 774KB 压缩后 231KB。
+- `svn.oaixdog.com` 外网 443 被腾讯云未备案拦截（与本次无关，8443 正常）。
+- 日志字段约定（用户确定）：上报字段**只增不改不删**，新增字段旧数据为空。
+
+### 主播 / 玩家（2026-10-14）
+- 业务里有主播和玩家，玩家加入主播的直播间（主播开游戏即一个房间，有断线重连，不区分场次）。
+- 决定：不加主播固定列；`actor` 页面上改叫「用户」，主播和玩家都是用户，事件名前缀区分 `anchor_*` / `player_*`；直播间事件统一带 `data.anchorId`（主播自己的事件填自己）。
+- 日志查询的字段条件不再要求只选一个事件：多选时可选字段是各事件字段的合集，没有该字段的事件不命中。
+- 场景数据 `.ops/qa_room.py`（log_id 以 QAROOM 开头），8 个场景见 `docs/log-query-room-cases.md`，全部通过；前端已发布到 gz。
 
 ### 已知坑（新增）
 - **Maven 默认用的是 JDK 25**（Homebrew `openjdk`），JDK 23 起不再自动运行 classpath 上的注解处理器，Lombok 失效、报几百个「找不到符号」。编译时指定 JDK 21：`JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home mvn compile`。

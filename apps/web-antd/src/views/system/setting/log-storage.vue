@@ -40,7 +40,7 @@ const retentionDays = ref<number>();
 const retentionSaving = ref(false);
 
 const [StorageForm, formApi] = useVbenForm({
-  commonConfig: { disabled: !canEdit.value, labelWidth: 120 },
+  commonConfig: { disabled: !canEdit.value },
   schema: [
     {
       component: 'Input',
@@ -61,7 +61,7 @@ const [StorageForm, formApi] = useVbenForm({
       component: 'Input',
       componentProps: { placeholder: '例如 logs_test' },
       fieldName: 'database',
-      help: '内网后台填 logs_test，正式后台填 logs_prod，两边数据完全分开',
+      help: '要管理保留期的日志库，例如 logs_test 或 logs_prod',
       label: '库名',
       rules: z
         .string()
@@ -72,10 +72,10 @@ const [StorageForm, formApi] = useVbenForm({
     },
     {
       component: 'Input',
-      componentProps: { placeholder: '例如 reader_test' },
-      fieldName: 'readUser',
-      help: '数据中心查询使用，只需要 SELECT 权限',
-      label: '只读账号',
+      componentProps: { placeholder: '例如 logs_admin' },
+      fieldName: 'adminUser',
+      help: '需要修改表结构（TTL）的权限',
+      label: '管理账号',
       rules: z
         .string()
         .trim()
@@ -87,39 +87,10 @@ const [StorageForm, formApi] = useVbenForm({
         resolve: () => ({
           componentProps: {
             autocomplete: 'new-password',
-            placeholder: saved.value?.readPasswordSet
-              ? '已设置，留空不修改'
-              : '请输入密码',
-          },
-        }),
-        triggerFields: ['readUser'],
-      },
-      fieldName: 'readPassword',
-      label: '只读密码',
-    },
-    {
-      component: 'Input',
-      componentProps: { placeholder: '可空，例如 logs_admin' },
-      fieldName: 'adminUser',
-      help: '只用于修改日志保留期，不配置则不能修改保留期',
-      label: '管理账号',
-      rules: z
-        .string()
-        .trim()
-        .regex(/^[\w.-]{0,64}$/, { message: '字母、数字和 _.-，最长 64 位' })
-        .optional(),
-    },
-    {
-      component: 'InputPassword',
-      dependencies: {
-        resolve: ({ values }) => ({
-          componentProps: {
-            autocomplete: 'new-password',
             placeholder: saved.value?.adminPasswordSet
               ? '已设置，留空不修改'
               : '请输入密码',
           },
-          show: !!values.adminUser?.trim(),
         }),
         triggerFields: ['adminUser'],
       },
@@ -135,15 +106,7 @@ async function formValues() {
   const { valid } = await formApi.validate();
   if (!valid) return null;
   const values = await formApi.getValues<LogStorageWrite>();
-  if (!values.readPassword && !saved.value?.readPasswordSet) {
-    message.warning('请输入只读账号密码');
-    return null;
-  }
-  if (
-    values.adminUser?.trim() &&
-    !values.adminPassword &&
-    !saved.value?.adminPasswordSet
-  ) {
+  if (!values.adminPassword && !saved.value?.adminPasswordSet) {
     message.warning('请输入管理账号密码');
     return null;
   }
@@ -156,8 +119,6 @@ async function applySaved(storage: LogStorage) {
     adminPassword: '',
     adminUser: storage.adminUser,
     database: storage.database,
-    readPassword: '',
-    readUser: storage.readUser,
     url: storage.url,
   });
 }
@@ -220,7 +181,7 @@ onMounted(async () => {
   <div>
     <div class="mb-6 max-w-[640px]">
       <Alert
-        message="数据中心从这里配置的 ClickHouse 查询日志。密码加密保存，不会显示。修改后先「测试连接」再保存。"
+        message="这里只用于管理普通日志的保留期（作用于整张日志表，影响共用这个库的所有项目）。各项目查询日志的连接在「日志中心 → 日志源」里配置。"
         show-icon
         type="info"
       />
@@ -235,33 +196,18 @@ onMounted(async () => {
       </div>
       <div v-if="testResult" class="mt-6">
         <Descriptions :column="1" bordered size="small" title="测试结果">
-          <DescriptionsItem label="只读账号">
-            <Tag :color="testResult.readOk ? 'success' : 'error'">
-              {{ testResult.readOk ? '连接成功' : '连接失败' }}
-            </Tag>
-            <span v-if="testResult.readOk">ClickHouse {{ testResult.version }}</span>
-            <span v-else class="break-all">{{ testResult.readMessage }}</span>
-          </DescriptionsItem>
           <DescriptionsItem label="管理账号">
-            <span
-              v-if="
-                testResult.adminOk === undefined || testResult.adminOk === null
-              "
-            >
-              未配置
-            </span>
-            <template v-else>
-              <Tag :color="testResult.adminOk ? 'success' : 'error'">
-                {{ testResult.adminOk ? '连接成功' : '连接失败' }}
-              </Tag>
-              <span class="break-all">{{ testResult.adminMessage }}</span>
-            </template>
+            <Tag :color="testResult.adminOk ? 'success' : 'error'">
+              {{ testResult.adminOk ? '连接成功' : '连接失败' }}
+            </Tag>
+            <span v-if="testResult.adminOk">ClickHouse {{ testResult.version }}</span>
+            <span v-else class="break-all">{{ testResult.adminMessage }}</span>
           </DescriptionsItem>
           <DescriptionsItem label="普通日志保留期">
-            <Space v-if="testResult.readOk">
+            <Space v-if="testResult.adminOk">
               <InputNumber
                 v-model:value="retentionDays"
-                :disabled="!testResult.adminOk || !saved?.adminPasswordSet"
+                :disabled="!saved?.adminPasswordSet"
                 :max="3650"
                 :min="1"
                 :precision="0"
@@ -269,7 +215,6 @@ onMounted(async () => {
               />
               <Button
                 :disabled="
-                  !testResult.adminOk ||
                   !saved?.adminPasswordSet ||
                   !retentionDays ||
                   retentionDays === testResult.retentionDays

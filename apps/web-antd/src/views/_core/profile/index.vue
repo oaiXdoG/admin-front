@@ -163,11 +163,11 @@ onMounted(async () => fill(await getProfileApi()));
       <Tabs>
         <TabPane key="basic" tab="基本资料">
           <div class="max-w-[560px]">
-            <div class="mb-6 ml-[100px]">
+            <div class="mb-6 ml-[120px]">
               <ImageUpload v-model:value="avatar" :size="80" />
             </div>
             <BasicForm />
-            <div class="ml-[100px] mt-2">
+            <div class="ml-[120px] mt-2">
               <Button :loading="saving" type="primary" @click="saveBasic">
                 保存
               </Button>
@@ -177,7 +177,7 @@ onMounted(async () => fill(await getProfileApi()));
         <TabPane key="password" tab="修改密码">
           <div class="max-w-[560px]">
             <PasswordForm />
-            <div class="ml-[100px] mt-2">
+            <div class="ml-[120px] mt-2">
               <Button
                 :loading="changing"
                 type="primary"

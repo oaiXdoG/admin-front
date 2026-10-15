@@ -32,10 +32,8 @@ export async function getLogStorageApi() {
 function trimLogStorage(data: LogStorageWrite) {
   return {
     adminPassword: data.adminPassword ?? '',
-    adminUser: (data.adminUser ?? '').trim(),
+    adminUser: data.adminUser.trim(),
     database: data.database.trim(),
-    readPassword: data.readPassword ?? '',
-    readUser: data.readUser.trim(),
     url: data.url.trim(),
   };
 }

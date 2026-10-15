@@ -177,69 +177,89 @@ export interface SystemSetting {
   copyright: string;
 }
 
-/** 日志存储（ClickHouse）连接配置，密码不返回，只返回是否已设置 */
+/** 平台日志存储：只用于管理普通日志的保留期（管理账号），密码不返回 */
 export interface LogStorage {
   url: string;
   database: string;
-  readUser: string;
-  readPasswordSet: boolean;
   adminUser: string;
   adminPasswordSet: boolean;
 }
 
-/** 密码留空表示沿用已保存的密码 */
+/** 管理密码留空表示沿用已保存的密码 */
 export interface LogStorageWrite {
   url: string;
   database: string;
-  readUser: string;
-  readPassword?: string;
-  adminUser?: string;
+  adminUser: string;
   adminPassword?: string;
 }
 
 export interface LogStorageTestResult {
-  readOk: boolean;
-  readMessage?: string;
-  /** 未配置管理账号时为空 */
-  adminOk?: boolean;
+  adminOk: boolean;
   adminMessage?: string;
   version?: string;
   retentionDays?: number;
 }
 
-/** 查询模板；fields 是字段映射 JSON 文本 */
-export interface QueryTemplateRecord {
-  id: number;
-  category: 'data' | 'log';
-  name: string;
-  event: string;
-  fields: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface QueryTemplateWrite {
-  category: 'data' | 'log';
-  name: string;
-  event: string;
-  fields: string;
-}
-
-export interface DataQueryCondition {
-  field: string;
+/** path 为日志自带列（time、actor 等）或 data.<路径>；值都以文本传递 */
+export interface LogQueryCondition {
+  path: string;
+  type: string;
   operator: string;
   value?: string;
   value2?: string;
 }
 
-export interface DataQueryParams {
-  templateId: number;
+/** 日志查询：events 为空表示全部事件；actor、server 精确匹配；keyword 在 data 里搜索；conditions 按字段路径过滤 */
+export interface LogQueryParams {
   startTime: number;
   endTime: number;
+  events: string[];
+  actor?: string;
+  server?: string;
+  keyword?: string;
   relation: string;
-  conditions: DataQueryCondition[];
+  conditions: LogQueryCondition[];
   page: number;
   pageSize: number;
+}
+
+/** 日志源：项目查询日志用的 ClickHouse（只读账号），每个项目一个，密码不返回 */
+export interface LogSourceRecord {
+  url: string;
+  database: string;
+  readUser: string;
+  readPasswordSet: boolean;
+  updatedAt: number;
+}
+
+/** 密码留空表示沿用已保存的密码 */
+export interface LogSourceWrite {
+  url: string;
+  database: string;
+  readUser: string;
+  readPassword?: string;
+}
+
+/** 事件字典：fields 是 JSON 文本 [{ path, label, type }] */
+export interface LogEventDict {
+  event: string;
+  label: string;
+  description: string;
+  fields: string;
+  updatedAt?: number;
+}
+
+/** 最近有数据的事件 */
+export interface EventSummary {
+  event: string;
+  total: number;
+  lastTime: number;
+}
+
+/** 事件的字段：types 是 ClickHouse 类型，同一字段可能出现过多种；sample 是最新一条日志的 data */
+export interface EventFields {
+  fields: { path: string; types: string[] }[];
+  sample?: Record<string, unknown>;
 }
 
 export interface LogRow {
@@ -252,7 +272,7 @@ export interface LogRow {
   data: Record<string, unknown>;
 }
 
-export interface DataQueryResult {
+export interface LogQueryResult {
   database: string;
   total: number;
   list: LogRow[];
@@ -293,4 +313,72 @@ export interface BackupInfo {
   lastSuccess?: boolean;
   lastMessage: string;
   files: { createdAt: number; name: string; size: number }[];
+}
+
+/** 数据源：业务服务器的查询接口，密钥不返回，只返回是否已设置 */
+export interface DataSourceRecord {
+  id: number;
+  name: string;
+  type: string;
+  url: string;
+  secretSet: boolean;
+  timeoutMs: number;
+  remark: string;
+  templateCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 密钥留空表示沿用已保存的密钥 */
+export interface DataSourceWrite {
+  name: string;
+  url: string;
+  secret?: string;
+  timeoutMs: number;
+  remark?: string;
+}
+
+/** 查询参数定义；select 的 options 是可选值 */
+export interface DataParam {
+  name: string;
+  label: string;
+  type: 'boolean' | 'number' | 'select' | 'string' | 'time';
+  required: boolean;
+  options?: { label: string; value: string }[];
+}
+
+/** 业务服务器查询清单里的一项（GET /admin/queries） */
+export interface BusinessQuery {
+  name: string;
+  label?: string;
+  description?: string;
+  params?: DataParam[];
+  fields?: { key: string; label?: string; type?: string }[];
+}
+
+/** 数据查询模板；params、fields 是 JSON 文本 */
+export interface DataTemplateRecord {
+  id: number;
+  sourceId: number;
+  sourceName?: string;
+  name: string;
+  query: string;
+  params: string;
+  fields: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DataTemplateWrite {
+  sourceId: number;
+  name: string;
+  query: string;
+  params: string;
+  fields: string;
+}
+
+/** 业务服务器返回的结果行原样透传 */
+export interface DataQueryResult {
+  total: number;
+  list: Record<string, unknown>[];
 }

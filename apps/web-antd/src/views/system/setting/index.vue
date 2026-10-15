@@ -36,7 +36,7 @@ const activeKey = computed<TabKey>({
         <TabPane key="brand" tab="品牌信息">
           <Brand />
         </TabPane>
-        <TabPane key="storage" tab="日志存储">
+        <TabPane key="storage" tab="日志保留期">
           <LogStorage />
         </TabPane>
         <TabPane key="backup" tab="数据备份">

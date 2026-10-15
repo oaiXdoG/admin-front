@@ -68,6 +68,25 @@ export const registeredRoutes: RegisteredRoute[] = [
     title: '角色管理',
     component: '/project/role/index',
   },
+  { name: 'log', path: '/log', title: '日志中心', directory: true },
+  {
+    name: 'log_query',
+    path: '/log/query',
+    title: '日志查询',
+    component: '/log-center/query',
+  },
+  {
+    name: 'log_event',
+    path: '/log/event',
+    title: '事件管理',
+    component: '/log-center/event',
+  },
+  {
+    name: 'log_source',
+    path: '/log/source',
+    title: '日志源',
+    component: '/log-center/source',
+  },
   { name: 'data', path: '/data', title: '数据中心', directory: true },
   {
     name: 'data_query',
@@ -76,16 +95,16 @@ export const registeredRoutes: RegisteredRoute[] = [
     component: '/data-center/query',
   },
   {
-    name: 'data_log',
-    path: '/data/log',
-    title: '日志查询',
-    component: '/data-center/log',
-  },
-  {
     name: 'data_template',
     path: '/data/template',
-    title: '查询模板管理',
+    title: '查询模板',
     component: '/data-center/template',
+  },
+  {
+    name: 'data_source',
+    path: '/data/source',
+    title: '数据源',
+    component: '/data-center/source',
   },
   { name: 'server', path: '/server', title: '服务器管理', directory: true },
   {

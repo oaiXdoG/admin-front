@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import type { Rule } from 'ant-design-vue/es/form';
 
-import type { FieldMapping } from '../types';
+import type { FieldMapping, SourceOption } from './types';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -17,14 +17,22 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import {
-  columnSources,
-  isJsonType,
-  SOURCE_PATTERN,
-  useRowKey,
-  valueTypes,
-} from '../types';
 import JsonConfiguration from './json-configuration.vue';
+import { isJsonType, useRowKey, valueTypes } from './types';
+
+/**
+ * 字段映射编辑器：日志模板和数据查询模板共用。
+ * sourcePattern / sourceHint 校验取值来源，sourceOptions 是可选的取值来源
+ */
+const props = withDefaults(
+  defineProps<{
+    sourceHint: string;
+    sourceOptions?: SourceOption[];
+    sourcePattern: RegExp;
+    sourcePlaceholder?: string;
+  }>(),
+  { sourceOptions: () => [], sourcePlaceholder: '取值来源' },
+);
 
 const fields = defineModel<FieldMapping[]>({ required: true });
 
@@ -32,13 +40,10 @@ const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const rowKey = useRowKey();
 const expanded = ref<number[]>([]);
 
-const sourceRules: Rule[] = [
+const sourceRules = computed<Rule[]>(() => [
   { message: '请输入取值来源', required: true, whitespace: true },
-  {
-    message: '自带列或 data.字段路径，例如 data.amount',
-    pattern: SOURCE_PATTERN,
-  },
-];
+  { message: props.sourceHint, pattern: props.sourcePattern },
+]);
 const keyRules: Rule[] = [
   { message: '请输入结果字段', required: true, whitespace: true },
   {
@@ -52,13 +57,9 @@ const keyRules: Rule[] = [
         : Promise.resolve(),
   },
 ];
-const sourceOptions = [
-  ...columnSources.map((item) => ({
-    label: `${item.value}（${item.label}）`,
-    value: item.value,
-  })),
-  { label: 'data.字段名（业务字段）', value: 'data.' },
-];
+const autoOptions = computed(() =>
+  props.sourceOptions.map((item) => ({ label: item.label, value: item.value })),
+);
 const labelRules: Rule[] = [
   { message: '请输入列标题', required: true, whitespace: true },
 ];
@@ -68,31 +69,25 @@ function add() {
   fields.value.push({ key: '', label: '', source: '', type: 'string' });
 }
 
-/** 选择自带列时带出类型、结果字段和描述；业务字段按路径最后一段填结果字段 */
-function onSourceChange(field: FieldMapping) {
-  const source = field.source?.trim() ?? '';
-  const column = columnSources.find((item) => item.value === source);
-  if (column) {
-    field.type = column.type;
-    field.key ||= column.value;
-    field.label ||= column.label;
-    return;
-  }
-  const last = source.startsWith('data.') ? source.split('.').pop() : '';
-  if (last && /^[A-Z_]\w*$/i.test(last) && !field.key) field.key = last;
+function optionOf(source: string) {
+  return props.sourceOptions.find((item) => item.value === source.trim());
 }
 
-/** 自带列的类型是固定的：time 只能是时间，其余只能是文本或数字 */
+/** 选中候选来源时带出类型、结果字段和列标题；否则按路径最后一段填结果字段 */
+function onSourceChange(field: FieldMapping) {
+  const source = field.source?.trim() ?? '';
+  const option = optionOf(source);
+  if (option?.type) field.type = option.type;
+  const last = source.split('.').pop() ?? '';
+  if (!field.key && /^[A-Z_]\w*$/i.test(last)) field.key = last;
+  if (!field.label) field.label = option?.title ?? '';
+}
+
 function typeOptions(field: FieldMapping) {
-  if (field.source === 'time') {
-    return valueTypes.filter((item) => item.value === 'time');
-  }
-  if (columnSources.some((item) => item.value === field.source)) {
-    return valueTypes.filter(
-      (item) => item.value === 'string' || item.value === 'number',
-    );
-  }
-  return valueTypes;
+  const allowed = optionOf(field.source ?? '')?.types;
+  return allowed
+    ? valueTypes.filter((item) => allowed.includes(item.value))
+    : valueTypes;
 }
 
 function remove(index: number) {
@@ -126,8 +121,8 @@ function toggle(field: FieldMapping) {
       >
         <AutoComplete
           v-model:value="field.source"
-          :options="sourceOptions"
-          placeholder="actor 或 data.amount"
+          :options="autoOptions"
+          :placeholder="sourcePlaceholder"
           @blur="onSourceChange(field)"
           @select="onSourceChange(field)"
         />
