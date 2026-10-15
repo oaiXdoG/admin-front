@@ -103,15 +103,28 @@ function setupAccessGuard(router: Router) {
     }
 
     // 生成路由表：先确定当前项目，菜单权限按项目返回
-    const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
-    const projectStore = useProjectStore();
-    await projectStore.load();
-
-    const { accessibleMenus, accessibleRoutes } = await generateAccess({
-      roles: userInfo.roles ?? [],
-      router,
-      routes: accessRoutes,
-    });
+    let userInfo;
+    let access;
+    try {
+      userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
+      await useProjectStore().load();
+      access = await generateAccess({
+        roles: userInfo.roles ?? [],
+        router,
+        routes: accessRoutes,
+      });
+    } catch (error) {
+      // 登录已失效（请求拦截器已清除令牌）：回到登录页，登录后回到原来要打开的页面
+      if (!accessStore.accessToken) {
+        return {
+          path: LOGIN_PATH,
+          query: { redirect: encodeURIComponent(to.fullPath) },
+          replace: true,
+        };
+      }
+      throw error;
+    }
+    const { accessibleMenus, accessibleRoutes } = access;
 
     // 保存菜单信息和路由信息
     accessStore.setAccessMenus(accessibleMenus);

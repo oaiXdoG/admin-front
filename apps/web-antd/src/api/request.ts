@@ -37,6 +37,8 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     const authStore = useAuthStore();
     if (!accessStore.accessToken) return;
     accessStore.setAccessToken(null);
+    // 刷新页面或首次打开时路由守卫还在加载权限，由守卫带上目标页跳到登录页
+    if (!accessStore.isAccessChecked) return;
     await authStore.logout();
   }
 

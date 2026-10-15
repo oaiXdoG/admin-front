@@ -6,9 +6,9 @@
 
 | 仓库 | 路径 | 说明 | 远程 | 最新提交 |
 | --- | --- | --- | --- | --- |
-| admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | `2468b75`（功能提交，之后只有本文档的更新） |
-| admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | `5c206b5` |
-| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | `51e8e70` |
+| admin-front | `/Users/oaixdog/Projecet/admin-front` | 管理后台前端，vben-admin 5（Vue 3 + Ant Design Vue），只保留 `apps/web-antd` | GitHub `oaiXdoG/admin-front`，已推送 | 标签 `v0.1.0` |
+| admin-background | `/Users/oaixdog/Projecet/admin-background` | 管理后台后端，Java 21 + zfoo 4.1.4 + MyBatis-Plus + PostgreSQL + Redis | GitHub `oaiXdoG/admin-background`，已推送 | 标签 `v0.1.0` |
+| log-sdk | `/Users/oaixdog/Projecet/log-sdk` | 日志上报 SDK + ClickHouse / Vector 部署配置 | GitHub `oaiXdoG/log-sdk`，已推送 | 标签 `v0.1.0` |
 
 约定：直接在 `main` 上开发，不建功能分支；只有用户明确要求时才提交、推送。admin-background 和 log-sdk 遵守各自 `docs/development-guidelines.md`（没有要求时不写测试、不随意编译；接口变化同步改文档）。用户偏好：优先用成熟方案（vben 内置组件、Logback 等），不重复造轮子。
 
@@ -89,8 +89,8 @@
 
 ## 四、待办
 
-1. 在浏览器里走一遍新页面（日志存储、数据中心、操作日志、菜单管理里的按钮、角色分配菜单）。
-2. gz 的 `9050` 目前对公网开放，后端没有额外的访问控制，建议在腾讯云安全组里限制来源 IP。
+1. 首页运营看板（下一步）：开屏信息、主播开播数量、在线时长、玩家充值金额等运营图表，日志统计放在这里做。
+2. 端口：正式上线时统一由 nginx 转发托管（用户决定），gz 的 `9050` 等端口届时不再对外。
 
 ### 安全加固（2026-10-14，已部署 gz 并验证）
 - 会话 12 小时无操作才失效（每次请求续期）。
@@ -142,6 +142,12 @@
 - 本机测得：RTT 约 55ms，带宽约 1.2～1.5 MB/s；最大的 vxe-table 包 774KB 压缩后 231KB。
 - `svn.oaixdog.com` 外网 443 被腾讯云未备案拦截（与本次无关，8443 正常）。
 - 日志字段约定（用户确定）：上报字段**只增不改不删**，新增字段旧数据为空。
+
+### v0.1.0（2026-10-15）
+- 系统管理、项目设置、日志中心前后端完成，三个仓库都打了标签 `v0.1.0`，各仓库 `CHANGELOG.md` 有记录。
+- 浏览器逐页走查了系统管理和项目设置（项目、用户、平台角色、角色模板、菜单、系统设置、操作日志、成员、项目角色、从模板导入），并用只分配了部分权限的账号验证了菜单、按钮和接口权限；走查数据已清理。
+- 修复：登录失效时（刷新或首次打开）跳回登录页后丢失原页面，现在登录后回到原页面；系统设置的按钮权限名改为「日志保留期」。
+- 控制台有 vben 表单插槽的 BREAKING CHANGE 警告，来自框架自身的表格表单插槽转发，不影响功能。
 
 ### 主播 / 玩家（2026-10-14）
 - 业务里有主播和玩家，玩家加入主播的直播间（主播开游戏即一个房间，有断线重连，不区分场次）。
