@@ -186,12 +186,13 @@
 
 ### 数据中心：按区自动发现（2026-10-16，已部署 gz，接口联调 12 项通过）
 - 数据源 `type`：`http` 固定地址（登录服、回调服）/ `zone` 按区自动发现（游戏服，所有区只配一个数据源、共用签名密钥和查询模板）。后台从 ZooKeeper 读 `/danmu/<项目 App Key>/logic/<区ID>`，每个区的查询接口为节点里的 `http://innerHost:innerPort`，`innerPort` 为 0 的区不参与。后台配置 `zookeeper.address`（gz 已配 127.0.0.1:2181）。
+- 按区自动发现的连接方式 `network`：`inner` 用节点 `innerHost`（同一内网），`public` 用节点 `host`（公网，游戏服查询端口要只对后台 IP 开放）；gz 已执行 `.ops/upgrade-data-network.sql`。
 - 数据查询选区服（多选 / 全部），各区并行查询、合并显示，每行带 `_zone`；失败或离线的区记在 `failures`。只查在线的区，离线直连数据库留到下一期。接口见 admin-background `docs/data-center.md`。
 - 联调脚本 `admin-background/.ops/it_zone.sh`（模拟业务服务器 + 临时注册 91～93 区 + 临时账号，跑完清理）。
 
 ### 下一步：游戏服提供数据中心查询接口（新对话处理）
 - daoshinvgui 加一个只对内网开放的 HTTP 管理端口（例如 9120），实现 `/admin/queries`、`/admin/query`（HMAC-SHA256 签名校验，规范见 admin-background `docs/data-center.md` 第二节），查询自己的 MongoDB（主播、玩家、周榜 / 月榜、历史榜等）。
-- 注册 ZooKeeper 节点时把 `innerHost`、`innerPort` 写成这个管理端口，后台就能自动发现；签名密钥写在游戏服配置里，与后台数据源一致。
+- 注册 ZooKeeper 节点时把 `innerPort` 写成这个管理端口（`innerHost` 为内网地址，`host` 为公网地址，后台按数据源的连接方式选用），后台就能自动发现；签名密钥写在游戏服配置里，与后台数据源一致。
 - 登录服同样提供这两个接口（查账号），在后台配成「固定地址」数据源。
 
 ### 已知坑（新增）

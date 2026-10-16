@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import type {
+  DataSourceNetwork,
   DataSourceRecord,
   DataSourceType,
   DataSourceZone,
@@ -27,6 +28,7 @@ import { useProjectStore } from '#/store';
 
 interface FormValues {
   name: string;
+  network: DataSourceNetwork;
   remark?: string;
   secret?: string;
   timeoutSeconds: number;
@@ -34,6 +36,11 @@ interface FormValues {
   /** type 为 zone 时不显示，取不到值 */
   url?: string;
 }
+
+const NETWORK_LABELS: Record<DataSourceNetwork, string> = {
+  inner: '内网',
+  public: '公网',
+};
 
 const TYPE_LABELS: Record<DataSourceType, string> = {
   http: '固定地址',
@@ -86,6 +93,24 @@ const [SourceForm, formApi] = useVbenForm({
       defaultValue: 'http',
       fieldName: 'type',
       label: '来源',
+    },
+    {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        optionType: 'button',
+        options: [
+          { label: NETWORK_LABELS.inner, value: 'inner' },
+          { label: NETWORK_LABELS.public, value: 'public' },
+        ],
+      },
+      defaultValue: 'inner',
+      dependencies: {
+        if: (values) => values.type === 'zone',
+        triggerFields: ['type'],
+      },
+      fieldName: 'network',
+      label: '连接方式',
     },
     {
       component: 'Input',
@@ -146,8 +171,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
       { align: 'left', field: 'name', minWidth: 160, title: '名称' },
       {
         field: 'type',
-        formatter: ({ cellValue }) =>
-          TYPE_LABELS[cellValue as DataSourceType] ?? cellValue,
+        formatter: ({ cellValue, row }) =>
+          cellValue === 'zone'
+            ? `${TYPE_LABELS.zone}（${NETWORK_LABELS[row.network as DataSourceNetwork] ?? NETWORK_LABELS.inner}）`
+            : (TYPE_LABELS[cellValue as DataSourceType] ?? cellValue),
         title: '来源',
         width: 120,
       },
@@ -201,6 +228,7 @@ async function openEditor(record: DataSourceRecord | null) {
       name: record.name,
       remark: record.remark,
       secret: '',
+      network: record.network ?? 'inner',
       timeoutSeconds: record.timeoutMs / 1000,
       type: record.type ?? 'http',
       url: record.url,
@@ -227,6 +255,7 @@ async function test() {
   testResult.value = null;
   try {
     const result = await testDataSourceApi(projectId.value, {
+      network: form.network ?? 'inner',
       secret: form.secret,
       sourceId: editing.value?.id,
       timeoutMs: form.timeoutSeconds * 1000,
@@ -258,6 +287,7 @@ async function save() {
   try {
     const data = {
       name: form.name,
+      network: form.network ?? 'inner',
       remark: form.remark,
       secret: form.secret,
       timeoutMs: form.timeoutSeconds * 1000,
@@ -343,7 +373,7 @@ function remove(record: DataSourceRecord) {
         <Alert
           :message="
             sourceType === 'zone'
-              ? '从 ZooKeeper 自动发现本项目的游戏服（/danmu/<App Key>/logic/<区ID>），每个区的查询接口为节点里的内网地址和端口；所有区共用签名密钥和查询模板，只能查在线的区。'
+              ? '从 ZooKeeper 自动发现本项目的游戏服（/danmu/<App Key>/logic/<区ID>），所有区共用签名密钥和查询模板，只能查在线的区。连接方式：后台和游戏服在同一个内网时选「内网」；不在同一个内网时选「公网」，游戏服的查询端口要对后台服务器的 IP 开放。'
               : '数据源是业务服务器按接口规范提供的查询接口（规范见 admin-background docs/data-center.md）。'
           "
           show-icon

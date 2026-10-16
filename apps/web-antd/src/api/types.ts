@@ -319,10 +319,14 @@ export interface BackupInfo {
 /** http：固定地址；zone：按区自动发现（从 ZooKeeper 读取各区游戏服地址，url 为空） */
 export type DataSourceType = 'http' | 'zone';
 
+/** 按区自动发现的连接方式：inner 内网地址，public 公网地址（后台和游戏服不在同一个内网时） */
+export type DataSourceNetwork = 'inner' | 'public';
+
 export interface DataSourceRecord {
   id: number;
   name: string;
   type: DataSourceType;
+  network: DataSourceNetwork;
   url: string;
   secretSet: boolean;
   timeoutMs: number;
@@ -336,6 +340,7 @@ export interface DataSourceRecord {
 export interface DataSourceWrite {
   name: string;
   type: DataSourceType;
+  network: DataSourceNetwork;
   /** type 为 zone 时为空 */
   url: string;
   secret?: string;

@@ -16,6 +16,7 @@ function trimSource(data: DataSourceWrite) {
     remark: (data.remark ?? '').trim(),
     secret: data.secret ?? '',
     timeoutMs: data.timeoutMs,
+    network: data.network,
     type: data.type,
     url: data.type === 'zone' ? '' : data.url.trim(),
   };
@@ -65,6 +66,7 @@ export async function testDataSourceApi(
   data: {
     secret?: string;
     sourceId?: number;
+    network: DataSourceWrite['network'];
     timeoutMs: number;
     type: DataSourceWrite['type'];
     url: string;
@@ -75,6 +77,7 @@ export async function testDataSourceApi(
     {
       projectId,
       secret: data.secret ?? '',
+      network: data.network,
       sourceId: data.sourceId,
       timeoutMs: data.timeoutMs,
       type: data.type,
