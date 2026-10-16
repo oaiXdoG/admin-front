@@ -13,7 +13,7 @@ import { useAccess } from '@vben/access';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Button, message, Modal, Space, Tag } from 'ant-design-vue';
+import { Alert, Button, message, Modal, Space, Tooltip } from 'ant-design-vue';
 
 import { useVbenForm, z } from '#/adapter/form';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
@@ -63,6 +63,10 @@ const testResult = ref<null | {
 /** 表单里当前选择的来源，切换说明文字 */
 const sourceType = ref<DataSourceType>('http');
 
+const sortedZones = computed(() =>
+  [...(testResult.value?.zones ?? [])].sort((a, b) => a.zoneId - b.zoneId),
+);
+
 const projectId = computed(() => projectStore.currentProjectId as number);
 
 const [SourceForm, formApi] = useVbenForm({
@@ -75,7 +79,10 @@ const [SourceForm, formApi] = useVbenForm({
   schema: [
     {
       component: 'Input',
-      componentProps: { maxlength: 64, placeholder: '自己起的名字，选数据源时显示，例如：游戏服、登录服' },
+      componentProps: {
+        maxlength: 64,
+        placeholder: '自己起的名字，选数据源时显示，例如：游戏服、登录服',
+      },
       fieldName: 'name',
       label: '名称',
       rules: z.string().trim().min(1, { message: '请输入名称' }),
@@ -115,7 +122,8 @@ const [SourceForm, formApi] = useVbenForm({
     {
       component: 'Input',
       componentProps: {
-        placeholder: '例如 http://10.0.0.5:8080，会调用 地址/admin/queries 和 地址/admin/query',
+        placeholder:
+          '例如 http://10.0.0.5:8080，会调用 地址/admin/queries 和 地址/admin/query',
       },
       dependencies: {
         if: (values) => values.type !== 'zone',
@@ -168,7 +176,7 @@ const [SourceForm, formApi] = useVbenForm({
 const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [
-      { align: 'left', field: 'name', minWidth: 160, title: '名称' },
+      { align: 'left', field: 'name', title: '名称', width: 180 },
       {
         field: 'type',
         formatter: ({ cellValue, row }) =>
@@ -176,7 +184,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
             ? `${TYPE_LABELS.zone}（${NETWORK_LABELS[row.network as DataSourceNetwork] ?? NETWORK_LABELS.inner}）`
             : (TYPE_LABELS[cellValue as DataSourceType] ?? cellValue),
         title: '来源',
-        width: 120,
+        width: 170,
       },
       {
         align: 'left',
@@ -190,10 +198,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         field: 'timeoutMs',
         formatter: ({ cellValue }) => `${cellValue / 1000} 秒`,
         title: '超时',
-        width: 90,
+        width: 80,
       },
-      { field: 'templateCount', title: '查询模板', width: 100 },
-      { align: 'left', field: 'remark', minWidth: 160, title: '备注' },
+      { field: 'templateCount', title: '查询模板', width: 90 },
+      { align: 'left', field: 'remark', title: '备注', width: 220 },
       {
         field: 'operation',
         fixed: 'right',
@@ -266,8 +274,8 @@ async function test() {
     testResult.value = {
       message:
         form.type === 'zone'
-          ? `连接成功，发现 ${zones.length} 个区，业务服务器提供 ${result.queryCount} 个查询`
-          : `连接成功，业务服务器提供 ${result.queryCount} 个查询`,
+          ? `连接成功：发现 ${zones.length} 个区，提供 ${result.queryCount} 个查询`
+          : `连接成功：提供 ${result.queryCount} 个查询`,
       ok: true,
       zones,
     };
@@ -381,22 +389,29 @@ function remove(record: DataSourceRecord) {
         />
       </div>
       <SourceForm />
-      <div v-if="testResult" class="mt-2">
-        <Tag :color="testResult.ok ? 'success' : 'error'">
-          {{ testResult.ok ? '成功' : '失败' }}
-        </Tag>
-        <span class="break-all text-sm">{{ testResult.message }}</span>
-        <ul
-          v-if="testResult.zones.length > 0"
-          class="text-muted-foreground mt-1 max-h-40 overflow-auto pl-1 text-xs leading-6"
-        >
-          <li v-for="zone in testResult.zones" :key="zone.zoneId">
-            {{ zone.zoneId }} 区（{{ zone.url }}）<span v-if="zone.status">
-              {{ zone.status }}
-            </span>
-          </li>
-        </ul>
-      </div>
+      <Alert
+        v-if="testResult"
+        class="mt-2"
+        :message="testResult.message"
+        show-icon
+        :type="testResult.ok ? 'success' : 'error'"
+      >
+        <template v-if="testResult.zones.length > 0" #description>
+          <div class="zone-grid max-h-48 overflow-auto">
+            <Tooltip
+              v-for="zone in sortedZones"
+              :key="zone.zoneId"
+              :title="zone.url"
+            >
+              <div
+                class="border-border bg-background rounded border px-2 py-0.5 text-center text-xs"
+              >
+                {{ zone.zoneId }} 区
+              </div>
+            </Tooltip>
+          </div>
+        </template>
+      </Alert>
       <template #footer>
         <Space>
           <Button :loading="testing" @click="test">测试连接</Button>
@@ -407,3 +422,11 @@ function remove(record: DataSourceRecord) {
     </Modal>
   </Page>
 </template>
+
+<style scoped>
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+</style>

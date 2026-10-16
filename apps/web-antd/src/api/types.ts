@@ -394,7 +394,6 @@ export interface DataTemplateWrite {
 export interface DataSourceZone {
   zoneId: number;
   url: string;
-  status: string;
 }
 
 /** zone 类型数据源：每行带 _zone（区 ID），查询失败或离线的区记在 failures */
