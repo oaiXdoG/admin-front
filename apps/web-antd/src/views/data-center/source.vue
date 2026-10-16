@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { DataSourceRecord } from '#/api/types';
+import type {
+  DataSourceRecord,
+  DataSourceType,
+  DataSourceZone,
+} from '#/api/types';
 
 import { computed, ref } from 'vue';
 
@@ -26,8 +30,15 @@ interface FormValues {
   remark?: string;
   secret?: string;
   timeoutSeconds: number;
-  url: string;
+  type: DataSourceType;
+  /** type 为 zone 时不显示，取不到值 */
+  url?: string;
 }
+
+const TYPE_LABELS: Record<DataSourceType, string> = {
+  http: '固定地址',
+  zone: '按区自动发现',
+};
 
 const projectStore = useProjectStore();
 const { hasAccessByCodes } = useAccess();
@@ -37,24 +48,55 @@ const editing = ref<DataSourceRecord | null>(null);
 const open = ref(false);
 const saving = ref(false);
 const testing = ref(false);
-const testResult = ref<null | { message: string; ok: boolean }>(null);
+const testResult = ref<null | {
+  message: string;
+  ok: boolean;
+  zones: DataSourceZone[];
+}>(null);
+/** 表单里当前选择的来源，切换说明文字 */
+const sourceType = ref<DataSourceType>('http');
 
 const projectId = computed(() => projectStore.currentProjectId as number);
 
 const [SourceForm, formApi] = useVbenForm({
-    schema: [
+  handleValuesChange: (values) => {
+    if (values.type && values.type !== sourceType.value) {
+      sourceType.value = values.type;
+      testResult.value = null;
+    }
+  },
+  schema: [
     {
       component: 'Input',
-      componentProps: { maxlength: 64, placeholder: '例如：游戏服 1 区' },
+      componentProps: { maxlength: 64, placeholder: '自己起的名字，选数据源时显示，例如：游戏服、登录服' },
       fieldName: 'name',
       label: '名称',
       rules: z.string().trim().min(1, { message: '请输入名称' }),
     },
     {
+      component: 'RadioGroup',
+      componentProps: {
+        buttonStyle: 'solid',
+        optionType: 'button',
+        options: [
+          { label: TYPE_LABELS.http, value: 'http' },
+          { label: TYPE_LABELS.zone, value: 'zone' },
+        ],
+      },
+      defaultValue: 'http',
+      fieldName: 'type',
+      label: '来源',
+    },
+    {
       component: 'Input',
-      componentProps: { placeholder: '例如 http://10.0.0.5:8080' },
+      componentProps: {
+        placeholder: '例如 http://10.0.0.5:8080，会调用 地址/admin/queries 和 地址/admin/query',
+      },
+      dependencies: {
+        if: (values) => values.type !== 'zone',
+        triggerFields: ['type'],
+      },
       fieldName: 'url',
-      help: '业务服务器提供查询接口的地址，admin 会调用 地址/admin/queries 和 地址/admin/query',
       label: '接口地址',
       rules: z
         .string()
@@ -72,13 +114,12 @@ const [SourceForm, formApi] = useVbenForm({
             autocomplete: 'new-password',
             placeholder: editing.value?.secretSet
               ? '已设置，留空不修改'
-              : '与业务服务器约定的签名密钥',
+              : '与业务服务器约定的 HMAC-SHA256 签名密钥，加密保存',
           },
         }),
         triggerFields: ['name'],
       },
       fieldName: 'secret',
-      help: '用于请求签名（HMAC-SHA256），加密保存，不会显示',
       label: '签名密钥',
     },
     {
@@ -103,7 +144,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [
       { align: 'left', field: 'name', minWidth: 160, title: '名称' },
-      { align: 'left', field: 'url', minWidth: 240, title: '接口地址' },
+      {
+        field: 'type',
+        formatter: ({ cellValue }) =>
+          TYPE_LABELS[cellValue as DataSourceType] ?? cellValue,
+        title: '来源',
+        width: 120,
+      },
+      {
+        align: 'left',
+        field: 'url',
+        formatter: ({ cellValue, row }) =>
+          row.type === 'zone' ? '—' : cellValue,
+        minWidth: 240,
+        title: '接口地址',
+      },
       {
         field: 'timeoutMs',
         formatter: ({ cellValue }) => `${cellValue / 1000} 秒`,
@@ -138,6 +193,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
 async function openEditor(record: DataSourceRecord | null) {
   editing.value = record;
   testResult.value = null;
+  sourceType.value = record?.type ?? 'http';
   open.value = true;
   await formApi.reset();
   if (record) {
@@ -146,6 +202,7 @@ async function openEditor(record: DataSourceRecord | null) {
       remark: record.remark,
       secret: '',
       timeoutSeconds: record.timeoutMs / 1000,
+      type: record.type ?? 'http',
       url: record.url,
     });
   }
@@ -173,16 +230,22 @@ async function test() {
       secret: form.secret,
       sourceId: editing.value?.id,
       timeoutMs: form.timeoutSeconds * 1000,
-      url: form.url,
+      type: form.type,
+      url: form.url ?? '',
     });
+    const zones = result.zones ?? [];
     testResult.value = {
-      message: `连接成功，业务服务器提供 ${result.queryCount} 个查询`,
+      message:
+        form.type === 'zone'
+          ? `连接成功，发现 ${zones.length} 个区，业务服务器提供 ${result.queryCount} 个查询`
+          : `连接成功，业务服务器提供 ${result.queryCount} 个查询`,
       ok: true,
+      zones,
     };
   } catch (error) {
     // 业务错误由请求拦截器抛出原始响应，原因在 data.message 里
     const reason = (error as { data?: { message?: string } })?.data?.message;
-    testResult.value = { message: reason ?? '连接失败', ok: false };
+    testResult.value = { message: reason ?? '连接失败', ok: false, zones: [] };
   } finally {
     testing.value = false;
   }
@@ -198,7 +261,8 @@ async function save() {
       remark: form.remark,
       secret: form.secret,
       timeoutMs: form.timeoutSeconds * 1000,
-      url: form.url,
+      type: form.type,
+      url: form.url ?? '',
     };
     await (editing.value
       ? updateDataSourceApi(projectId.value, editing.value.id, data)
@@ -277,7 +341,11 @@ function remove(record: DataSourceRecord) {
     >
       <div class="mb-4">
         <Alert
-          message="数据源是业务服务器按接口规范提供的查询接口（规范见 admin-background docs/data-center.md）。"
+          :message="
+            sourceType === 'zone'
+              ? '从 ZooKeeper 自动发现本项目的游戏服（/danmu/<App Key>/logic/<区ID>），每个区的查询接口为节点里的内网地址和端口；所有区共用签名密钥和查询模板，只能查在线的区。'
+              : '数据源是业务服务器按接口规范提供的查询接口（规范见 admin-background docs/data-center.md）。'
+          "
           show-icon
           type="info"
         />
@@ -288,6 +356,16 @@ function remove(record: DataSourceRecord) {
           {{ testResult.ok ? '成功' : '失败' }}
         </Tag>
         <span class="break-all text-sm">{{ testResult.message }}</span>
+        <ul
+          v-if="testResult.zones.length > 0"
+          class="text-muted-foreground mt-1 max-h-40 overflow-auto pl-1 text-xs leading-6"
+        >
+          <li v-for="zone in testResult.zones" :key="zone.zoneId">
+            {{ zone.zoneId }} 区（{{ zone.url }}）<span v-if="zone.status">
+              {{ zone.status }}
+            </span>
+          </li>
+        </ul>
       </div>
       <template #footer>
         <Space>

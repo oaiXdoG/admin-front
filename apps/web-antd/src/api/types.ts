@@ -316,10 +316,13 @@ export interface BackupInfo {
 }
 
 /** 数据源：业务服务器的查询接口，密钥不返回，只返回是否已设置 */
+/** http：固定地址；zone：按区自动发现（从 ZooKeeper 读取各区游戏服地址，url 为空） */
+export type DataSourceType = 'http' | 'zone';
+
 export interface DataSourceRecord {
   id: number;
   name: string;
-  type: string;
+  type: DataSourceType;
   url: string;
   secretSet: boolean;
   timeoutMs: number;
@@ -332,6 +335,8 @@ export interface DataSourceRecord {
 /** 密钥留空表示沿用已保存的密钥 */
 export interface DataSourceWrite {
   name: string;
+  type: DataSourceType;
+  /** type 为 zone 时为空 */
   url: string;
   secret?: string;
   timeoutMs: number;
@@ -361,6 +366,8 @@ export interface DataTemplateRecord {
   id: number;
   sourceId: number;
   sourceName?: string;
+  /** 数据源类型；后端未返回时由数据查询页按区服列表判断 */
+  sourceType?: DataSourceType;
   name: string;
   query: string;
   params: string;
@@ -378,9 +385,18 @@ export interface DataTemplateWrite {
 }
 
 /** 业务服务器返回的结果行原样透传 */
+/** 按区自动发现的数据源当前可查询的区；url 为该区的查询接口地址 */
+export interface DataSourceZone {
+  zoneId: number;
+  url: string;
+  status: string;
+}
+
+/** zone 类型数据源：每行带 _zone（区 ID），查询失败或离线的区记在 failures */
 export interface DataQueryResult {
   total: number;
   list: Record<string, unknown>[];
+  failures: { message: string; zoneId: number }[];
 }
 
 /** 服务器管理：主机指标（cpu 为百分比，内存和磁盘为字节，网络为字节/秒，uptime 为秒），time 为采集时间 */

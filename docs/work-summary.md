@@ -1,6 +1,6 @@
 # 工作总结与交接
 
-更新时间：2026-10-16（五个仓库移到 `~/Project/danmu`；登录服 / 游戏服接入 ZooKeeper 服务发现、游戏服改 MongoDB 并按区服；后台进程管理新增进程类型、部署、文件管理、长轮询指令；都已部署到 gz，前端 http://111.230.143.165/）。供新对话接续工作使用。
+更新时间：2026-10-16（五个仓库移到 `~/Project/danmu`；登录服 / 游戏服接入 ZooKeeper 服务发现、游戏服改 MongoDB 并按区服；后台进程管理新增进程类型、部署、文件管理、长轮询指令；数据中心数据源支持按区自动发现、多区查询；都已部署到 gz，前端 http://111.230.143.165/）。供新对话接续工作使用。
 
 ## 一、仓库（都在 `~/Project/danmu` 下，GitHub 私有仓库，SSH 推送）
 
@@ -183,6 +183,16 @@
 - 页面：进程列表一个状态标签；表单字段顺序调整、去掉问号提示；JVM 模板可「用 zfoo 推荐参数新建」；监控图表不再联动提示框。
 - 发布包：只打改动部分即可（增量覆盖），依赖不变时游戏服包约 100KB；从本机上传到 gz 实测只有 100～200KB/s。
 - gz 上 login、daoshinvgui 已用新版本部署并运行；工作目录里旧的 start/stop/restart 脚本可以删除。
+
+### 数据中心：按区自动发现（2026-10-16，已部署 gz，接口联调 12 项通过）
+- 数据源 `type`：`http` 固定地址（登录服、回调服）/ `zone` 按区自动发现（游戏服，所有区只配一个数据源、共用签名密钥和查询模板）。后台从 ZooKeeper 读 `/danmu/<项目 App Key>/logic/<区ID>`，每个区的查询接口为节点里的 `http://innerHost:innerPort`，`innerPort` 为 0 的区不参与。后台配置 `zookeeper.address`（gz 已配 127.0.0.1:2181）。
+- 数据查询选区服（多选 / 全部），各区并行查询、合并显示，每行带 `_zone`；失败或离线的区记在 `failures`。只查在线的区，离线直连数据库留到下一期。接口见 admin-background `docs/data-center.md`。
+- 联调脚本 `admin-background/.ops/it_zone.sh`（模拟业务服务器 + 临时注册 91～93 区 + 临时账号，跑完清理）。
+
+### 下一步：游戏服提供数据中心查询接口（新对话处理）
+- daoshinvgui 加一个只对内网开放的 HTTP 管理端口（例如 9120），实现 `/admin/queries`、`/admin/query`（HMAC-SHA256 签名校验，规范见 admin-background `docs/data-center.md` 第二节），查询自己的 MongoDB（主播、玩家、周榜 / 月榜、历史榜等）。
+- 注册 ZooKeeper 节点时把 `innerHost`、`innerPort` 写成这个管理端口，后台就能自动发现；签名密钥写在游戏服配置里，与后台数据源一致。
+- 登录服同样提供这两个接口（查账号），在后台配成「固定地址」数据源。
 
 ### 已知坑（新增）
 - **Maven 默认用的是 JDK 25**（Homebrew `openjdk`），JDK 23 起不再自动运行 classpath 上的注解处理器，Lombok 失效、报几百个「找不到符号」。编译时指定 JDK 21：`JAVA_HOME=/usr/local/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home mvn compile`。
